@@ -1,7 +1,7 @@
 {
   "name": "physics-lab",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@babylonjs/core": "9.18.1",
+    "blockly": "13.2.0",
     "monaco-editor": "0.56.0",
     "pyodide": "314.0.3"
   },
