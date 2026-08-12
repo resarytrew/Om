@@ -1,17 +1,17 @@
 .lab-card {
-  border-color: #29343d;
-  background: #101419;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, .22);
+  border-color: #303b45;
+  background: #11171d;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .24);
 }
 
 .scene-head {
-  background: linear-gradient(180deg, rgba(25, 30, 35, .96), rgba(19, 23, 28, .96));
+  background: linear-gradient(180deg, rgba(27, 33, 39, .98), rgba(20, 25, 31, .98));
 }
 
 .scene-wrap {
   background:
-    radial-gradient(circle at 48% 18%, rgba(88, 215, 255, .035), transparent 44%),
-    #0a0e11;
+    radial-gradient(circle at 50% 18%, rgba(129, 176, 207, .08), transparent 48%),
+    linear-gradient(180deg, #101a22 0%, #0d141a 100%);
 }
 
 .scene-wrap::after {
@@ -20,36 +20,47 @@
   inset: 0;
   pointer-events: none;
   box-shadow:
-    inset 0 1px rgba(255, 255, 255, .025),
-    inset 0 -52px 90px rgba(0, 0, 0, .12);
+    inset 0 1px rgba(255, 255, 255, .035),
+    inset 0 -48px 100px rgba(0, 0, 0, .08);
 }
 
 #lab-canvas {
   position: relative;
   z-index: 0;
+  filter: saturate(.98) contrast(1.015);
 }
 
 .scene-hint {
   z-index: 2;
-  border-color: rgba(93, 112, 125, .38);
-  background: rgba(10, 14, 17, .78);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, .24);
-  color: #aeb9c1;
+  left: 14px;
+  bottom: 12px;
+  padding: 8px 11px;
+  border-color: rgba(120, 142, 156, .32);
+  background: rgba(13, 19, 24, .74);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .18);
+  color: #b7c1c8;
+  backdrop-filter: blur(10px);
 }
 
 .controls-card {
-  background: linear-gradient(180deg, #151a20 0%, #12171c 100%);
-  border-color: #29343d;
+  background: linear-gradient(180deg, #171d23 0%, #13191f 100%);
+  border-color: #303b45;
   box-shadow: 0 20px 60px rgba(0, 0, 0, .13);
 }
 
 .circuit-status {
-  background: rgba(11, 15, 18, .55);
+  background: rgba(14, 20, 25, .62);
   backdrop-filter: blur(8px);
 }
 
-@media (min-height: 900px) {
+@media (min-height: 760px) {
   .workspace {
-    grid-template-rows: minmax(600px, 64vh) 286px 164px;
+    grid-template-rows: minmax(580px, 63vh) 286px 164px;
+  }
+}
+
+@media (min-height: 920px) {
+  .workspace {
+    grid-template-rows: minmax(650px, 67vh) 286px 164px;
   }
 }
