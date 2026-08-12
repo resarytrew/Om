@@ -1,6 +1,6 @@
 # PHYSICS://LAB
 
-**Programmable Virtual Physics Laboratory** — архитектурный фундамент программируемой виртуальной физической лаборатории.
+**Programmable Virtual Physics Laboratory** — программируемая виртуальная физическая лаборатория.
 
 Текущий vertical slice: **закон Ома для участка цепи**.
 
@@ -15,12 +15,18 @@
 - Обнаружение разомкнутой цепи и короткого замыкания.
 - Расчёт тока, мощности и показаний приборов.
 - MeasurementStore, таблица измерений и график I(U), строящийся только из реально зафиксированных измерений.
+- **Manual mode** — прямое управление одной и той же физической установкой.
+- **Blocks mode** — Blockly 13 с собственными физическими блоками.
+- **Experiment AST** — нейтральное представление алгоритма между Blocks, runtime и Python.
+- Подсветка выполняемого визуального блока, Stop/Reset и журнал выполнения.
+- Live preview Python-кода, полученного из AST.
+- Переход **Blocks → Python** без создания второй лаборатории.
 - **Python mode:** настоящий CPython/Pyodide в Web Worker.
 - **Monaco Editor** с Python syntax highlighting.
 - Ученический API `source / resistor / ammeter / voltmeter / experiment`.
 - Python-скрипт может менять параметры, снимать показания, записывать измерения и строить экспериментальную серию на той же лаборатории.
 - NumPy/SciPy подгружаются лениво для научных вычислений.
-- Unit tests Physics Core и Python event replay.
+- Unit tests Physics Core, Python replay и Experiment AST.
 
 ## Локальный запуск
 
@@ -47,11 +53,28 @@ npm run build
 
 Для проверки архитектуры есть кнопка **«Собрать эталонную цепь»**.
 
+## Blocks
+
+Переключитесь на **Blocks**. По умолчанию загружается алгоритм:
+
+```text
+когда эксперимент запущен
+  собрать стандартную цепь
+  очистить измерения
+  установить R = 3 Ω
+  изменять U от 2 до 12 В с шагом 2 В
+    измерить силу тока
+    записать измерение
+  построить I(U)
+```
+
+Blockly workspace компилируется в `Experiment AST`; AST исполняется через тот же `SimulationRuntime`, который обслуживает ручной режим. Справа снизу показывается Python-представление текущего алгоритма. Кнопка **«Открыть как Python»** переносит этот код в Monaco/Pyodide.
+
+Подробнее: [EXPERIMENT_AST.md](EXPERIMENT_AST.md).
+
 ## Python
 
 Переключитесь на вкладку **Python**. Pyodide загружается только при первом открытии режима.
-
-Пример:
 
 ```python
 from physics_lab import *
@@ -71,17 +94,16 @@ for voltage in np.arange(2, 12.1, 2):
 experiment.plot("U", "I")
 ```
 
-Код действительно выполняется Python-движком в Web Worker. Команды затем проходят через тот же `SimulationRuntime`, который используется ручным режимом, поэтому 3D-сцена, измерения и график обновляются из общего состояния.
+Код выполняется Python-движком в Web Worker. Команды затем проходят через тот же `SimulationRuntime`, поэтому 3D-сцена, измерения и график остаются единым состоянием.
 
 Подробнее: [PYTHON_RUNTIME.md](PYTHON_RUNTIME.md).
 
 ## Следующие этапы
 
-1. Experiment AST и Blockly runtime.
-2. Преобразование Blocks → AST → Python.
-3. Rive adapter для приборных интерфейсов и motion feedback.
-4. Улучшенный редактор 3D-проводов: live preview, snapping, удаление выбранного провода.
-5. Замена Babylon primitives на качественные GLB-модели без изменения Physics Core.
-6. Обобщённый Python scientific solver для полей, численного интегрирования и более сложных экспериментов.
+1. Rive adapter для приборных интерфейсов и motion feedback.
+2. Улучшенный редактор 3D-проводов: live preview, snapping, удаление выбранного провода.
+3. Замена Babylon primitives на качественные GLB-модели без изменения Physics Core.
+4. Обобщённый Python scientific solver для полей, численного интегрирования и более сложных экспериментов.
+5. Расширение Experiment AST: условия, измерительные датчики, переменные и пользовательские функции.
 
 Архитектура: [ARCHITECTURE.md](ARCHITECTURE.md).
