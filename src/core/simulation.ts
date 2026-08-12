@@ -72,6 +72,12 @@ export class SimulationRuntime {
     this.recalculate();
   }
 
+  cancelTerminalSelection(): void {
+    if (!this.selectedTerminal) return;
+    this.selectedTerminal = null;
+    this.publish();
+  }
+
   removeConnection(id: ConnectionId): void {
     this.circuit.disconnect(id);
     this.recalculate();
