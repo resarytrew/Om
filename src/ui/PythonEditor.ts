@@ -1,17 +1,4 @@
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import 'monaco-editor/esm/vs/basic-languages/python/python.contribution';
-import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-
-interface MonacoHost {
-  MonacoEnvironment?: {
-    getWorker(): Worker;
-  };
-}
-
-const host = globalThis as typeof globalThis & MonacoHost;
-host.MonacoEnvironment = {
-  getWorker: () => new EditorWorker(),
-};
+import * as monaco from 'monaco-editor';
 
 monaco.editor.defineTheme('physics-lab', {
   base: 'vs-dark',
