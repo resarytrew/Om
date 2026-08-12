@@ -116,16 +116,16 @@ export class LabScene {
     const camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2,
-      1.37,
-      9.35,
-      new Vector3(-0.02, 0.79, 0.58),
+      1.315,
+      9.6,
+      new Vector3(-0.02, 0.83, 0.58),
       this.scene,
     );
-    camera.fov = 0.565;
+    camera.fov = 0.6;
     camera.lowerRadiusLimit = 9.1;
     camera.upperRadiusLimit = 10.4;
-    camera.lowerBetaLimit = 1.31;
-    camera.upperBetaLimit = 1.41;
+    camera.lowerBetaLimit = 1.25;
+    camera.upperBetaLimit = 1.36;
     camera.lowerAlphaLimit = -1.67;
     camera.upperAlphaLimit = -1.47;
     camera.wheelPrecision = 180;
@@ -225,7 +225,7 @@ export class LabScene {
       this.scene,
     );
     benchSlab.position.y = -0.105;
-    benchSlab.material = this.theme.darkMetal;
+    benchSlab.material = this.theme.bench;
     benchSlab.receiveShadows = true;
     benchSlab.isPickable = false;
 
@@ -290,11 +290,9 @@ export class LabScene {
         unit: 'A',
         max: 4,
         decimals: 2,
-        position: new Vector3(2.55, 0, 0.38),
+        position: new Vector3(2.62, 0, 0.34),
         plus: ids.ammeterPlus,
         minus: ids.ammeterMinus,
-        width: 1.98,
-        height: 1.69,
       },
       registerTerminal,
     );
@@ -308,7 +306,7 @@ export class LabScene {
         unit: 'V',
         max: 12,
         decimals: 2,
-        position: new Vector3(0.82, 0, 1.88),
+        position: new Vector3(0.86, 0, 1.93),
         plus: ids.voltmeterPlus,
         minus: ids.voltmeterMinus,
         width: 1.96,
@@ -515,12 +513,12 @@ export class LabScene {
     for (let index = 0; index < id.length; index += 1) {
       hash = (hash * 31 + id.charCodeAt(index)) | 0;
     }
-    return ((Math.abs(hash) % 7) - 3) * 0.19;
+    return ((Math.abs(hash) % 5) - 2) * 0.22;
   }
 
   private createWirePath(from: Vector3, to: Vector3, lane: number): Vector3[] {
     const distance = Vector3.Distance(from, to);
-    const tableY = 0.068;
+    const tableY = 0.082;
     const frontOffset = 0.28 + Math.min(0.55, distance * 0.065);
     const routeZ = Math.min(from.z, to.z) - frontOffset - Math.abs(lane) * 0.2;
     const first = from.add(new Vector3(0, -0.08, -0.16));
@@ -618,7 +616,7 @@ export class LabScene {
 
       const tube = MeshBuilder.CreateTube(
         `wire:${connection.id}`,
-        { path, radius: 0.041, tessellation: 20, cap: Mesh.CAP_ALL },
+        { path, radius: 0.046, tessellation: 20, cap: Mesh.CAP_ALL },
         this.scene,
       );
       tube.material = material;

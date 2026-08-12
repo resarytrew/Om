@@ -11,11 +11,6 @@ import {
 } from '@babylonjs/core';
 import type { TerminalId } from '../../core/types';
 import type { InstrumentTheme } from './InstrumentTheme';
-import {
-  createInsetPanel,
-  createProtectiveCheeks,
-  createRoundedEnclosure,
-} from './IndustrialGeometry';
 
 export type TerminalPolarity = 'positive' | 'negative' | 'neutral';
 export type TerminalRegistrar = (
@@ -190,12 +185,12 @@ function createFeet(
     for (const z of [-1, 1]) {
       const foot = MeshBuilder.CreateCylinder(
         `${prefix}-foot-${x}-${z}`,
-        { height: 0.085, diameter: 0.19, tessellation: 24 },
+        { height: 0.105, diameter: 0.24, tessellation: 24 },
         scene,
       );
       foot.position = new Vector3(
         center.x + x * width * 0.38,
-        0.046,
+        0.055,
         center.z + z * depth * 0.33,
       );
       foot.material = theme.rubberBlack;
@@ -221,6 +216,23 @@ function createScrew(
   screw.isPickable = false;
 }
 
+function createPanelFrame(
+  scene: Scene,
+  theme: InstrumentTheme,
+  prefix: string,
+  center: Vector3,
+  width: number,
+  height: number,
+  frontZ: number,
+): void {
+  const strip = 0.07;
+  const depth = 0.055;
+  createBox(scene, `${prefix}-frame-top`, new Vector3(center.x, center.y + height / 2, frontZ), new Vector3(width, strip, depth), theme.meterBezel);
+  createBox(scene, `${prefix}-frame-bottom`, new Vector3(center.x, center.y - height / 2, frontZ), new Vector3(width, strip, depth), theme.meterBezel);
+  createBox(scene, `${prefix}-frame-left`, new Vector3(center.x - width / 2, center.y, frontZ), new Vector3(strip, height, depth), theme.meterBezel);
+  createBox(scene, `${prefix}-frame-right`, new Vector3(center.x + width / 2, center.y, frontZ), new Vector3(strip, height, depth), theme.meterBezel);
+}
+
 export class PowerSupplyVisual {
   private readonly display: DigitalDisplay;
   private readonly statusLed: Mesh;
@@ -244,39 +256,22 @@ export class PowerSupplyVisual {
     const frontZ = position.z - depth / 2 - 0.055;
 
     createFeet(scene, theme, 'source', position, width, depth);
-    createRoundedEnclosure(
+    createBox(scene, 'source-shell', bodyCenter, new Vector3(width, height, depth), theme.graphiteSoft);
+    createBox(
       scene,
-      'source-shell',
-      bodyCenter,
-      new Vector3(width, height, depth),
-      0.14,
-      theme.graphiteSoft,
-    );
-    createProtectiveCheeks(
-      scene,
-      'source',
-      bodyCenter,
-      width,
-      height,
-      depth * 0.96,
-      theme.rubberBlack,
-    );
-    createInsetPanel(
-      scene,
-      'source-front',
+      'source-front-panel',
       new Vector3(position.x, 0.94, frontZ),
-      new Vector3(width * 0.91, height * 0.85, 0.078),
-      0.085,
+      new Vector3(width * 0.94, height * 0.9, 0.085),
       theme.frontPanel,
-      theme.meterBezel,
     );
-    createRoundedEnclosure(
+    createPanelFrame(
       scene,
-      'source-top-cover',
-      new Vector3(position.x, 1.77, position.z + 0.015),
-      new Vector3(width * 0.9, 0.075, depth * 0.88),
-      0.055,
-      theme.darkMetal,
+      theme,
+      'source',
+      new Vector3(position.x, 0.94, 0),
+      width * 0.94,
+      height * 0.9,
+      frontZ - 0.047,
     );
 
     createTextPlate(
@@ -501,41 +496,38 @@ export class AnalogMeterVisual {
     const frontZ = p.z - depth / 2 - 0.055;
 
     createFeet(scene, theme, spec.id, p, width, depth);
-    createRoundedEnclosure(
+    createBox(
       scene,
       `${spec.id}-shell`,
       new Vector3(p.x, 0.96, p.z),
       new Vector3(width, height, depth),
-      0.12,
       theme.graphite,
     );
-    createProtectiveCheeks(
-      scene,
-      spec.id,
-      new Vector3(p.x, 0.96, p.z),
-      width,
-      height,
-      depth * 0.94,
-      theme.rubberBlack,
-    );
-    createInsetPanel(
+    createBox(
       scene,
       `${spec.id}-front`,
       new Vector3(p.x, 0.96, frontZ),
-      new Vector3(width * 0.91, height * 0.88, 0.078),
-      0.082,
+      new Vector3(width * 0.95, height * 0.92, 0.085),
       theme.meterPanel,
-      theme.meterBezel,
+    );
+    createPanelFrame(
+      scene,
+      theme,
+      spec.id,
+      new Vector3(p.x, 0.96, 0),
+      width * 0.95,
+      height * 0.92,
+      frontZ - 0.048,
     );
 
-    createRoundedEnclosure(
+    const bezel = createBox(
       scene,
       `${spec.id}-dial-bezel`,
       new Vector3(p.x, 1.17, frontZ - 0.085),
-      new Vector3(width * 0.82, 1.07, 0.062),
-      0.06,
+      new Vector3(width * 0.84, 1.08, 0.06),
       theme.meterBezel,
     );
+    bezel.isPickable = false;
 
     const faceWidth = width * 0.78;
     const faceHeight = 0.96;
@@ -592,10 +584,10 @@ export class AnalogMeterVisual {
       new Vector3(p.x, 1.71, frontZ - 0.13),
       1.45,
       0.18,
-      [`DC ${spec.label.toUpperCase()}`],
-      '#1d2529',
+      [`LAB ${spec.label.toUpperCase()}`],
+      '#20282c',
       'transparent',
-      39,
+      34,
       28,
     );
 
@@ -756,20 +748,18 @@ export class ResistorModuleVisual {
     terminalB: TerminalId,
     registerTerminal: TerminalRegistrar,
   ) {
-    createRoundedEnclosure(
+    createBox(
       scene,
       'resistor-module-base',
       new Vector3(position.x, 0.24, position.z),
       new Vector3(2.72, 0.34, 1.18),
-      0.11,
       theme.graphite,
     );
-    createRoundedEnclosure(
+    createBox(
       scene,
       'resistor-module-deck',
       new Vector3(position.x, 0.44, position.z + 0.03),
       new Vector3(2.42, 0.13, 0.9),
-      0.065,
       theme.meterPanel,
     );
 
