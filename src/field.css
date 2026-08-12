@@ -1,0 +1,117 @@
+.field-workspace {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  grid-template-areas:
+    "scene controls"
+    "validation controls";
+  grid-template-rows: minmax(520px, 1fr) 285px;
+  gap: 10px;
+  padding: 10px;
+  overflow: auto;
+}
+
+.field-scene-card,
+.field-controls-card,
+.field-validation-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.field-scene-card { grid-area: scene; display: grid; grid-template-rows: auto 1fr; min-height: 520px; }
+.field-controls-card { grid-area: controls; padding: 16px; }
+.field-validation-card { grid-area: validation; padding: 14px 16px; }
+
+.field-scene-head {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.field-scene-head h1 { margin: 3px 0 0; font-size: 18px; font-weight: 650; }
+
+.field-status {
+  padding: 7px 9px;
+  border: 1px solid #34414b;
+  border-radius: 6px;
+  color: #8f9ca5;
+  font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .04em;
+}
+.field-status[data-state="ready"] { color: var(--green); border-color: #315642; background: #111c16; }
+.field-status[data-state="loading"] { color: var(--yellow); border-color: #5c5134; }
+.field-status[data-state="error"] { color: var(--red); border-color: #6b373c; background: #211316; }
+
+.field-canvas-wrap { position: relative; min-height: 0; background: #0b0e12; }
+#field-canvas { width: 100%; height: 100%; display: block; outline: none; }
+.field-scene-note {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  max-width: 520px;
+  padding: 8px 10px;
+  border: 1px solid #26323a;
+  border-radius: 7px;
+  background: rgba(13, 17, 21, .88);
+  color: #82909a;
+  font-size: 11px;
+  line-height: 1.45;
+  backdrop-filter: blur(8px);
+}
+
+.field-controls-card .panel-title { margin-bottom: 15px; }
+.field-control { display: block; margin-top: 15px; }
+.field-control:first-of-type { margin-top: 0; }
+.field-control-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 7px; }
+.field-control-head span { color: #cbd4d9; font-size: 12px; }
+.field-control-head output { color: #dbe5ea; font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.field-control input[type="range"] { width: 100%; }
+.field-controls-card .range-label { margin-top: 4px; }
+#field-run { width: 100%; min-height: 40px; margin-top: 19px; border-radius: 7px; }
+#field-run:disabled { opacity: .5; cursor: wait; }
+.field-error { min-height: 34px; margin-top: 9px; color: var(--red); font-size: 11px; line-height: 1.45; }
+
+.field-probe-card {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #27323a;
+  border-radius: 8px;
+  background: #101419;
+}
+.field-probe-card .eyebrow { margin-bottom: 8px; }
+.field-probe-row { display: flex; justify-content: space-between; gap: 14px; padding: 5px 0; color: #8d9aa3; font-size: 11px; }
+.field-probe-row strong { color: #dbe5e9; font: 600 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.field-validation-head { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; margin-bottom: 12px; }
+.field-validation-head p { margin: 0; color: #6f7c85; font-size: 11px; }
+.field-checks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.field-check {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #2a343c;
+  border-radius: 8px;
+  background: #101419;
+}
+.field-check[data-pass="true"] { border-color: #2c4d3a; }
+.field-check-top { display: flex; justify-content: space-between; gap: 8px; color: #aeb9c0; font-size: 11px; }
+.field-check [data-check-badge] { color: #7e8a92; font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.field-check[data-pass="true"] [data-check-badge] { color: var(--green); }
+.field-check-value { margin-top: 13px; color: #dce6ea; font: 600 14px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.field-check-detail { margin-top: 5px; color: #65727b; font-size: 10px; line-height: 1.35; }
+.field-validation-meta { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 14px 24px; color: #74818a; font-size: 10.5px; }
+.field-validation-meta b { color: #abb7be; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
+
+@media (max-width: 1280px) {
+  .field-workspace { grid-template-columns: minmax(0, 1fr) 285px; }
+  .field-checks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field-workspace { grid-template-rows: minmax(480px, 1fr) 390px; }
+}
