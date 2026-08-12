@@ -39,6 +39,15 @@
     s+=`<line x1="${px}" y1="${h-pB}" x2="${px}" y2="${py}" stroke="#8db4ff" stroke-dasharray="5 5"/><line x1="${pL}" y1="${py}" x2="${px}" y2="${py}" stroke="#8db4ff" stroke-dasharray="5 5"/><circle cx="${px}" cy="${py}" r="11" fill="rgba(23,105,255,.09)"/><circle cx="${px}" cy="${py}" r="6" fill="#fff" stroke="#1769ff" stroke-width="3"/>`;
     const boxX=Math.min(w-115,px+14),boxY=Math.max(18,py-48);s+=`<rect x="${boxX}" y="${boxY}" width="96" height="45" rx="9" fill="#fff" stroke="#a9c7ff"/><text x="${boxX+10}" y="${boxY+18}" font-size="11" fill="#1769ff" font-weight="700">U = ${clean(state.U)} В</text><text x="${boxX+10}" y="${boxY+35}" font-size="11" fill="#1769ff" font-weight="700">I = ${clean(ci,2)} А</text>`;
     s+=`<text x="${w/2}" y="${h-2}" text-anchor="middle" font-size="12" fill="#3b4962">Напряжение U, В</text><text transform="translate(15 ${h/2}) rotate(-90)" text-anchor="middle" font-size="12" fill="#3b4962">Сила тока I, А</text>`;
+    const compare = state.mode==='explain' || (state.mode==='predict' && state.checked && state.prediction==='half');
+    if(compare){
+      const before=[];for(let u=0;u<=12;u+=.5)before.push(`${x(u)},${y(graphPoint(u,3))}`);
+      const after=[];for(let u=0;u<=12;u+=.5)after.push(`${x(u)},${y(graphPoint(u,6))}`);
+      s=s.replace(/<polyline points="[^"]+" fill="none" stroke="#1769ff" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"\/>/, `<polyline points="${before.join(' ')}" fill="none" stroke="#1769ff" stroke-width="3"/><polyline points="${after.join(' ')}" fill="none" stroke="#15965a" stroke-width="3" stroke-dasharray="8 6"/>`);
+      els.legend.textContent='R = 3 Ом · R = 6 Ом';
+    } else {
+      els.legend.textContent=`R = ${clean(state.R)} Ом`;
+    }
     els.graph.innerHTML=s;
   }
 
@@ -71,7 +80,7 @@
     els.uVal.textContent=clean(state.U)+' В';els.rVal.textContent=clean(state.R)+' Ом';els.iVal.textContent='I = '+clean(i,2)+' А';
     els.badge.querySelector('span').textContent='I = '+clean(i,2)+' А';els.digital.textContent=i.toFixed(2)+' A';els.needle.setAttribute('transform',`rotate(${needleAngle(i)} 712 351)`);
     els.interp.innerHTML=`При <strong>U = ${clean(state.U)} В</strong> и <strong>R = ${clean(state.R)} Ом</strong> сила тока равна <strong>${clean(i,2)} А</strong>.`;
-    els.battery.textContent=clean(state.U)+' В';els.resistor.textContent=clean(state.R)+' Ом';els.legend.textContent='R = '+clean(state.R)+' Ом';
+    els.battery.textContent=clean(state.U)+' В';els.resistor.textContent=clean(state.R)+' Ом';
     els.over.classList.toggle('show',i>4);els.badge.classList.toggle('over',i>4);els.sceneStatus.textContent=state.U===0?'Нет напряжения':(state.running?'Цепь замкнута':'Эксперимент на паузе');
     renderGraph();if(renderPanel)renderLesson();
   }
