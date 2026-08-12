@@ -2,6 +2,8 @@ import {
   ArcRotateCamera,
   Color3,
   Color4,
+  Curve3,
+  DirectionalLight,
   Engine,
   HemisphericLight,
   LinesMesh,
@@ -78,9 +80,10 @@ export class LabScene {
       stencil: true,
     });
     this.scene = new Scene(this.engine);
-    this.scene.clearColor = new Color4(0.032, 0.038, 0.043, 1);
-    this.scene.imageProcessingConfiguration.contrast = 1.12;
-    this.scene.imageProcessingConfiguration.exposure = 1.02;
+    this.scene.clearColor = new Color4(0.055, 0.073, 0.088, 1);
+    this.scene.ambientColor = new Color3(0.07, 0.08, 0.09);
+    this.scene.imageProcessingConfiguration.contrast = 1.08;
+    this.scene.imageProcessingConfiguration.exposure = 1.16;
     this.theme = createInstrumentTheme(this.scene);
 
     this.buildScene();
@@ -112,55 +115,94 @@ export class LabScene {
     const camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2,
-      1.02,
-      11.8,
-      new Vector3(0, 0.72, 0.2),
+      1.27,
+      10.15,
+      new Vector3(-0.05, 0.76, 0.52),
       this.scene,
     );
-    camera.lowerRadiusLimit = 10.2;
-    camera.upperRadiusLimit = 13.2;
-    camera.lowerBetaLimit = 0.86;
-    camera.upperBetaLimit = 1.12;
-    camera.lowerAlphaLimit = -1.82;
-    camera.upperAlphaLimit = -1.31;
-    camera.wheelPrecision = 100;
+    camera.fov = 0.66;
+    camera.lowerRadiusLimit = 9.3;
+    camera.upperRadiusLimit = 11.2;
+    camera.lowerBetaLimit = 1.18;
+    camera.upperBetaLimit = 1.35;
+    camera.lowerAlphaLimit = -1.72;
+    camera.upperAlphaLimit = -1.43;
+    camera.wheelPrecision = 150;
     camera.panningSensibility = 0;
     camera.attachControl(this.canvas, true);
 
     const hemi = new HemisphericLight(
       'ambient-lab-light',
-      new Vector3(0.1, 1, -0.22),
+      new Vector3(-0.1, 1, -0.16),
       this.scene,
     );
-    hemi.intensity = 0.72;
-    hemi.diffuse = new Color3(0.84, 0.9, 0.94);
-    hemi.groundColor = new Color3(0.08, 0.09, 0.1);
+    hemi.intensity = 0.82;
+    hemi.diffuse = new Color3(0.93, 0.96, 1);
+    hemi.groundColor = new Color3(0.22, 0.24, 0.26);
 
-    const key = new PointLight(
+    const key = new DirectionalLight(
       'softbox-key',
-      new Vector3(-4.6, 6.2, -4.4),
+      new Vector3(0.34, -1, 0.42),
       this.scene,
     );
-    key.intensity = 72;
-    key.diffuse = new Color3(1.0, 0.94, 0.84);
+    key.position = new Vector3(-5.2, 7.5, -5.6);
+    key.intensity = 2.0;
+    key.diffuse = new Color3(1.0, 0.94, 0.86);
 
     const fill = new PointLight(
       'softbox-fill',
-      new Vector3(4.4, 4.2, -2.1),
+      new Vector3(4.4, 3.8, -3.6),
       this.scene,
     );
-    fill.intensity = 34;
-    fill.diffuse = new Color3(0.68, 0.83, 1.0);
+    fill.intensity = 24;
+    fill.diffuse = new Color3(0.72, 0.86, 1.0);
+
+    const rim = new PointLight(
+      'back-rim',
+      new Vector3(-0.8, 4.8, 3.15),
+      this.scene,
+    );
+    rim.intensity = 15;
+    rim.diffuse = new Color3(0.56, 0.72, 0.86);
 
     const shadow = new ShadowGenerator(2048, key);
     shadow.useBlurExponentialShadowMap = true;
-    shadow.blurKernel = 22;
-    shadow.bias = 0.0008;
-    shadow.normalBias = 0.02;
+    shadow.blurKernel = 28;
+    shadow.bias = 0.0007;
+    shadow.normalBias = 0.025;
+
+    const studioFloor = MeshBuilder.CreateGround(
+      'studio-floor',
+      { width: 15.5, height: 11.5 },
+      this.scene,
+    );
+    studioFloor.position = new Vector3(0, -0.25, 1.4);
+    studioFloor.material = this.theme.backdrop;
+    studioFloor.receiveShadows = true;
+    studioFloor.isPickable = false;
+
+    const backdrop = MeshBuilder.CreateBox(
+      'studio-backdrop',
+      { width: 13.5, height: 5.4, depth: 0.16 },
+      this.scene,
+    );
+    backdrop.position = new Vector3(0, 2.45, 3.62);
+    backdrop.material = this.theme.backdrop;
+    backdrop.receiveShadows = true;
+    backdrop.isPickable = false;
+
+    const wallRail = MeshBuilder.CreateBox(
+      'wall-rail',
+      { width: 11.6, height: 0.055, depth: 0.055 },
+      this.scene,
+    );
+    wallRail.position = new Vector3(0, 1.02, 3.52);
+    wallRail.material = this.theme.darkMetal;
+    wallRail.isPickable = false;
 
     const ground = MeshBuilder.CreateGround(
       'bench-pick-surface',
-      { width: 12.4, height: 7.4 },
+      { width: 11.65, height: 6.15 },
       this.scene,
     );
     ground.position.y = 0.005;
@@ -170,27 +212,41 @@ export class LabScene {
 
     const benchSlab = MeshBuilder.CreateBox(
       'bench-slab',
-      { width: 12.6, height: 0.16, depth: 7.6 },
+      { width: 11.85, height: 0.19, depth: 6.35 },
       this.scene,
     );
-    benchSlab.position.y = -0.09;
-    const slabMaterial = this.theme.bench.clone('bench-slab-material');
-    if (slabMaterial) {
-      slabMaterial.albedoColor = new Color3(0.052, 0.058, 0.064);
-      slabMaterial.roughness = 0.8;
-      benchSlab.material = slabMaterial;
-    } else {
-      benchSlab.material = this.theme.bench;
-    }
+    benchSlab.position.y = -0.105;
+    benchSlab.material = this.theme.bench;
     benchSlab.receiveShadows = true;
+    benchSlab.isPickable = false;
+
+    const mat = MeshBuilder.CreateBox(
+      'bench-mat',
+      { width: 10.1, height: 0.035, depth: 4.95 },
+      this.scene,
+    );
+    mat.position = new Vector3(0, 0.033, 0.4);
+    mat.material = this.theme.benchMat;
+    mat.receiveShadows = true;
+    mat.isPickable = false;
+
+    const frontLip = MeshBuilder.CreateBox(
+      'bench-front-lip',
+      { width: 11.82, height: 0.18, depth: 0.13 },
+      this.scene,
+    );
+    frontLip.position = new Vector3(0, -0.08, -3.11);
+    frontLip.material = this.theme.darkMetal;
+    frontLip.isPickable = false;
 
     const backRail = MeshBuilder.CreateBox(
       'bench-back-rail',
-      { width: 12.2, height: 0.22, depth: 0.14 },
+      { width: 11.7, height: 0.16, depth: 0.12 },
       this.scene,
     );
-    backRail.position = new Vector3(0, 0.1, 3.55);
+    backRail.position = new Vector3(0, 0.1, 3.0);
     backRail.material = this.theme.darkMetal;
+    backRail.isPickable = false;
 
     const registerTerminal = (
       id: TerminalId,
@@ -201,7 +257,7 @@ export class LabScene {
     this.source = new PowerSupplyVisual(
       this.scene,
       this.theme,
-      new Vector3(-3.75, 0, -0.78),
+      new Vector3(-3.28, 0, 0.34),
       ids.sourcePlus,
       ids.sourceMinus,
       registerTerminal,
@@ -210,7 +266,7 @@ export class LabScene {
     this.resistor = new ResistorModuleVisual(
       this.scene,
       this.theme,
-      new Vector3(-0.45, 0, 0.38),
+      new Vector3(-0.58, 0, 0.48),
       ids.resistorA,
       ids.resistorB,
       registerTerminal,
@@ -225,7 +281,7 @@ export class LabScene {
         unit: 'A',
         max: 4,
         decimals: 3,
-        position: new Vector3(3.25, 0, -0.65),
+        position: new Vector3(2.72, 0, 0.28),
         plus: ids.ammeterPlus,
         minus: ids.ammeterMinus,
       },
@@ -241,17 +297,24 @@ export class LabScene {
         unit: 'V',
         max: 12,
         decimals: 2,
-        position: new Vector3(1.05, 0, 2.0),
+        position: new Vector3(0.82, 0, 2.0),
         plus: ids.voltmeterPlus,
         minus: ids.voltmeterMinus,
-        width: 1.78,
-        height: 1.48,
+        width: 2.04,
+        height: 1.72,
       },
       registerTerminal,
     );
 
     for (const mesh of this.scene.meshes) {
-      if (mesh === ground || mesh.name.includes('glass') || mesh.name.includes('display')) continue;
+      if (
+        mesh === ground
+        || mesh === studioFloor
+        || mesh === backdrop
+        || mesh.name.includes('glass')
+        || mesh.name.includes('display')
+        || mesh.name.includes('dial-face')
+      ) continue;
       shadow.addShadowCaster(mesh, true);
     }
   }
@@ -263,50 +326,50 @@ export class LabScene {
   ): Mesh {
     const metalBase = MeshBuilder.CreateCylinder(
       `terminal-base:${id}`,
-      { height: 0.18, diameter: 0.34, tessellation: 36 },
+      { height: 0.17, diameter: 0.4, tessellation: 40 },
       this.scene,
     );
-    metalBase.position = position.add(new Vector3(0, 0, 0.075));
+    metalBase.position = position.add(new Vector3(0, 0, 0.07));
     metalBase.rotation.x = Math.PI / 2;
     metalBase.material = this.theme.metal;
     metalBase.isPickable = false;
 
     const ring = MeshBuilder.CreateTorus(
       `terminal-ring:${id}`,
-      { diameter: 0.34, thickness: 0.055, tessellation: 40 },
+      { diameter: 0.39, thickness: 0.052, tessellation: 44 },
       this.scene,
     );
-    ring.position = position.add(new Vector3(0, 0, -0.028));
+    ring.position = position.add(new Vector3(0, 0, -0.025));
     ring.rotation.x = Math.PI / 2;
-    ring.material = this.theme.darkMetal;
+    ring.material = this.theme.metal;
     ring.isPickable = false;
 
     const cap = MeshBuilder.CreateCylinder(
       `terminal:${id}`,
-      { height: 0.18, diameter: 0.25, tessellation: 36 },
+      { height: 0.2, diameter: 0.3, tessellation: 40 },
       this.scene,
     );
-    cap.position = position.add(new Vector3(0, 0, -0.085));
+    cap.position = position.add(new Vector3(0, 0, -0.09));
     cap.rotation.x = Math.PI / 2;
 
     const baseColor = polarity === 'positive'
-      ? new Color3(0.68, 0.035, 0.045)
+      ? new Color3(0.76, 0.028, 0.04)
       : polarity === 'negative'
-        ? new Color3(0.025, 0.028, 0.032)
-        : new Color3(0.29, 0.32, 0.34);
+        ? new Color3(0.028, 0.032, 0.036)
+        : new Color3(0.31, 0.34, 0.36);
     const material = new StandardMaterial(`terminal-material:${id}`, this.scene);
     material.diffuseColor = baseColor;
-    material.specularColor = new Color3(0.5, 0.5, 0.5);
+    material.specularColor = new Color3(0.55, 0.55, 0.55);
     cap.material = material;
     cap.isPickable = true;
     cap.metadata = { terminalId: id } satisfies PickMetadata;
 
     const contact = MeshBuilder.CreateCylinder(
       `terminal-contact:${id}`,
-      { height: 0.045, diameter: 0.105, tessellation: 28 },
+      { height: 0.05, diameter: 0.115, tessellation: 30 },
       this.scene,
     );
-    contact.position = position.add(new Vector3(0, 0, -0.19));
+    contact.position = position.add(new Vector3(0, 0, -0.215));
     contact.rotation.x = Math.PI / 2;
     contact.material = this.theme.metal;
     contact.isPickable = false;
@@ -387,7 +450,7 @@ export class LabScene {
       return;
     }
 
-    if (!snapped) pointerPoint.y = Math.max(pointerPoint.y + 0.12, 0.12);
+    if (!snapped) pointerPoint.y = Math.max(pointerPoint.y + 0.09, 0.09);
     this.updatePreviewWire(from, pointerPoint, Boolean(snapped));
   }
 
@@ -412,7 +475,7 @@ export class LabScene {
   };
 
   private updatePreviewWire(from: Vector3, to: Vector3, snapped: boolean): void {
-    const points = this.createWirePath(from, to, 0.5);
+    const points = this.createWirePath(from, to);
     if (!this.previewWire) {
       this.previewWire = MeshBuilder.CreateLines(
         'wire-preview',
@@ -420,7 +483,7 @@ export class LabScene {
         this.scene,
       );
       this.previewWire.isPickable = false;
-      this.previewWire.alpha = 0.9;
+      this.previewWire.alpha = 0.86;
     } else {
       this.previewWire = MeshBuilder.CreateLines(
         'wire-preview',
@@ -429,7 +492,7 @@ export class LabScene {
     }
     this.previewWire.color = snapped
       ? new Color3(0.28, 0.82, 0.48)
-      : new Color3(0.3, 0.7, 0.86);
+      : new Color3(0.32, 0.72, 0.88);
   }
 
   private clearPreviewWire(): void {
@@ -437,18 +500,24 @@ export class LabScene {
     this.previewWire = null;
   }
 
-  private createWirePath(from: Vector3, to: Vector3, liftScale = 0.7): Vector3[] {
+  private createWirePath(from: Vector3, to: Vector3): Vector3[] {
     const distance = Vector3.Distance(from, to);
-    const mid = Vector3.Lerp(from, to, 0.5).add(
-      new Vector3(0, Math.min(liftScale, 0.18 + distance * 0.07), -0.05),
-    );
-    return [
-      from.clone(),
-      Vector3.Lerp(from, mid, 0.42),
-      mid,
-      Vector3.Lerp(mid, to, 0.58),
-      to.clone(),
-    ];
+    const tableY = 0.12;
+    const forwardOffset = Math.min(0.72, 0.28 + distance * 0.08);
+    const frontZ = Math.min(from.z, to.z) - forwardOffset;
+    const first = from.add(new Vector3(0, -0.04, -0.16));
+    const last = to.add(new Vector3(0, -0.04, -0.16));
+    const middleA = Vector3.Lerp(from, to, 0.34);
+    middleA.y = Math.max(tableY, Math.min(from.y, to.y) * 0.48);
+    middleA.z = Math.min(middleA.z, frontZ);
+    const middleB = Vector3.Lerp(from, to, 0.66);
+    middleB.y = Math.max(tableY, Math.min(from.y, to.y) * 0.45);
+    middleB.z = Math.min(middleB.z, frontZ + 0.04);
+    return Curve3.CreateCatmullRomSpline(
+      [from.clone(), first, middleA, middleB, last, to.clone()],
+      10,
+      false,
+    ).getPoints();
   }
 
   private applyState(state: SimulationState): void {
@@ -489,8 +558,8 @@ export class LabScene {
         : candidate
           ? new Color3(0.08, 0.48, 0.24)
           : Color3.Black();
-      visual.mesh.scaling.setAll(active ? 1.18 : candidate ? 1.12 : 1);
-      visual.ring.scaling.setAll(active ? 1.08 : candidate ? 1.05 : 1);
+      visual.mesh.scaling.setAll(active ? 1.16 : candidate ? 1.1 : 1);
+      visual.ring.scaling.setAll(active ? 1.07 : candidate ? 1.04 : 1);
     }
   }
 
@@ -519,16 +588,16 @@ export class LabScene {
       const toTerminal = this.runtime.circuit.getTerminal(connection.to);
       const red = fromTerminal.polarity === 'positive' || toTerminal.polarity === 'positive';
       const baseColor = red
-        ? new Color3(0.5, 0.018, 0.025)
-        : new Color3(0.018, 0.022, 0.025);
+        ? new Color3(0.58, 0.018, 0.028)
+        : new Color3(0.022, 0.026, 0.03);
       const material = new PBRMaterial(`wire-material:${connection.id}`, this.scene);
       material.albedoColor = baseColor;
-      material.metallic = 0.02;
-      material.roughness = 0.82;
+      material.metallic = 0.0;
+      material.roughness = 0.86;
 
       const tube = MeshBuilder.CreateTube(
         `wire:${connection.id}`,
-        { path, radius: 0.068, tessellation: 20, cap: Mesh.CAP_ALL },
+        { path, radius: 0.062, tessellation: 22, cap: Mesh.CAP_ALL },
         this.scene,
       );
       tube.material = material;
@@ -549,7 +618,7 @@ export class LabScene {
       );
 
       this.connectionMeshes.set(connection.id, {
-        meshes: [tube, plugFrom, plugTo],
+        meshes: [tube, ...plugFrom, ...plugTo],
         material,
         baseColor,
       });
@@ -563,28 +632,50 @@ export class LabScene {
     terminalPosition: Vector3,
     material: PBRMaterial,
     id: ConnectionId,
-  ): Mesh {
-    const plug = MeshBuilder.CreateCylinder(
-      name,
-      { height: 0.24, diameterTop: 0.18, diameterBottom: 0.24, tessellation: 28 },
+  ): Mesh[] {
+    const sleeve = MeshBuilder.CreateCylinder(
+      `${name}-sleeve`,
+      { height: 0.28, diameterTop: 0.16, diameterBottom: 0.23, tessellation: 32 },
       this.scene,
     );
-    plug.position = terminalPosition.add(new Vector3(0, 0, -0.22));
-    plug.rotation.x = Math.PI / 2;
-    plug.material = material;
-    plug.isPickable = true;
-    plug.metadata = { connectionId: id } satisfies PickMetadata;
-    return plug;
+    sleeve.position = terminalPosition.add(new Vector3(0, 0, -0.27));
+    sleeve.rotation.x = Math.PI / 2;
+    sleeve.material = material;
+    sleeve.isPickable = true;
+    sleeve.metadata = { connectionId: id } satisfies PickMetadata;
+
+    const collar = MeshBuilder.CreateCylinder(
+      `${name}-collar`,
+      { height: 0.07, diameter: 0.19, tessellation: 30 },
+      this.scene,
+    );
+    collar.position = terminalPosition.add(new Vector3(0, 0, -0.155));
+    collar.rotation.x = Math.PI / 2;
+    collar.material = this.theme.metal;
+    collar.isPickable = false;
+
+    const strainRelief = MeshBuilder.CreateCylinder(
+      `${name}-strain-relief`,
+      { height: 0.14, diameterTop: 0.13, diameterBottom: 0.18, tessellation: 30 },
+      this.scene,
+    );
+    strainRelief.position = terminalPosition.add(new Vector3(0, 0, -0.455));
+    strainRelief.rotation.x = Math.PI / 2;
+    strainRelief.material = material;
+    strainRelief.isPickable = true;
+    strainRelief.metadata = { connectionId: id } satisfies PickMetadata;
+
+    return [sleeve, collar, strainRelief];
   }
 
   private refreshConnectionStyles(): void {
     for (const [id, visual] of this.connectionMeshes) {
       const selected = id === this.selectedConnection;
       visual.material.albedoColor = selected
-        ? new Color3(0.12, 0.42, 0.54)
+        ? new Color3(0.11, 0.42, 0.55)
         : visual.baseColor;
       visual.material.emissiveColor = selected
-        ? new Color3(0.035, 0.2, 0.27)
+        ? new Color3(0.025, 0.16, 0.22)
         : Color3.Black();
     }
   }
