@@ -26,7 +26,7 @@
             <label class="toggle-wrap">Анимация тока <span class="switch"><input id="animToggle" type="checkbox" checked><span class="switch-ui"></span></span></label>
             <div class="scene-status"><span class="status-dot"></span><span id="sceneStatus">Цепь замкнута</span></div>
           </div>
-          <svg id="circuitSvg" viewBox="0 0 900 520" role="img" aria-label="Электрическая цепь с источником напряжения, резистором и амперметром">
+          <svg id="circuitSvg" viewBox="0 0 900 520" role="img" aria-label="Электрическая цепь с источником напряжения, резистором, вольтметром и амперметром">
             <defs>
               <linearGradient id="batteryCopper" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#bd6227"/><stop offset=".48" stop-color="#f2a14a"/><stop offset="1" stop-color="#b95d23"/></linearGradient>
               <linearGradient id="batteryBlack" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#171b22"/><stop offset=".45" stop-color="#343a44"/><stop offset="1" stop-color="#11151a"/></linearGradient>
@@ -60,6 +60,18 @@
               <text x="463" y="185" text-anchor="middle" font-size="18" font-weight="850" fill="#332718" id="resistorLabel">3 Ом</text>
             </g>
 
+            <path d="M392 177 V236 H404 V272" fill="none" stroke="#4a515b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M535 177 V236 H508 V272" fill="none" stroke="#4a515b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+            <g id="voltmeter" filter="url(#softShadow)">
+              <rect x="385" y="266" width="142" height="120" rx="17" fill="url(#meterBody)" stroke="#14181e" stroke-width="3"/>
+              <circle cx="405" cy="274" r="9" fill="#111" stroke="#b8c0ca"/><circle cx="507" cy="274" r="9" fill="#ad1c22" stroke="#ff8c91"/>
+              <rect x="401" y="286" width="110" height="47" rx="8" fill="url(#meterFace)" stroke="#10151b" stroke-width="2"/>
+              <text x="456" y="317" text-anchor="middle" font-size="24" font-weight="850" fill="#172033">V</text>
+              <rect x="404" y="341" width="104" height="31" rx="6" fill="#10161c" stroke="#616a73"/>
+              <text id="voltmeterDigital" x="456" y="364" text-anchor="middle" fill="#54d8ff" filter="url(#glow)" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="21" font-weight="800">6.0 V</text>
+            </g>
+            <text x="456" y="407" text-anchor="middle" font-size="14" fill="#253550">Вольтметр</text>
+
             <g id="ammeter" filter="url(#softShadow)">
               <rect x="624" y="260" width="176" height="197" rx="18" fill="url(#meterBody)" stroke="#14181e" stroke-width="3"/>
               <rect x="642" y="277" width="140" height="87" rx="9" fill="url(#meterFace)" stroke="#10151b" stroke-width="2"/>
@@ -78,7 +90,7 @@
             <text x="824" y="361" font-size="16" fill="#253550">Амперметр</text><text x="824" y="384" font-size="13" fill="#68768e">измеряет ток</text>
             <g id="charges" aria-hidden="true"></g>
           </svg>
-          <div class="current-badge" id="currentBadge"><span>I = 2 А</span><small>расчётное значение</small></div>
+          <div class="current-badge" id="currentBadge" style="left:34%;top:58%"><span>I = 2 А</span><small>расчётное значение</small></div>
         </div>
         <aside class="formula-side">
           <div class="eyebrow">Физическая модель</div><div class="formula-title">Закон Ома для участка цепи</div>
