@@ -1,0 +1,55 @@
+.lab-card {
+  border-color: #29343d;
+  background: #101419;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .22);
+}
+
+.scene-head {
+  background: linear-gradient(180deg, rgba(25, 30, 35, .96), rgba(19, 23, 28, .96));
+}
+
+.scene-wrap {
+  background:
+    radial-gradient(circle at 48% 18%, rgba(88, 215, 255, .035), transparent 44%),
+    #0a0e11;
+}
+
+.scene-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, .025),
+    inset 0 -52px 90px rgba(0, 0, 0, .12);
+}
+
+#lab-canvas {
+  position: relative;
+  z-index: 0;
+}
+
+.scene-hint {
+  z-index: 2;
+  border-color: rgba(93, 112, 125, .38);
+  background: rgba(10, 14, 17, .78);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .24);
+  color: #aeb9c1;
+}
+
+.controls-card {
+  background: linear-gradient(180deg, #151a20 0%, #12171c 100%);
+  border-color: #29343d;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .13);
+}
+
+.circuit-status {
+  background: rgba(11, 15, 18, .55);
+  backdrop-filter: blur(8px);
+}
+
+@media (min-height: 900px) {
+  .workspace {
+    grid-template-rows: minmax(600px, 64vh) 286px 164px;
+  }
+}
