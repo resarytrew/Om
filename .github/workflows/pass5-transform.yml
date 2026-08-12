@@ -1,0 +1,33 @@
+name: Ohm Pass 5 transform
+
+on:
+  push:
+    branches:
+      - agent/ohm-visual-pass5
+    paths:
+      - scripts/pass5-transform.mjs
+      - .github/workflows/pass5-transform.yml
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/ohm-visual-pass5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Apply Pass 5 geometry transform
+        run: node scripts/pass5-transform.mjs
+      - name: Commit transformed geometry
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/rendering/babylon/ProfessionalInstruments.ts src/rendering/babylon/LabScene.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm Pass 5: industrial instrument geometry"
+          git push
