@@ -1,6 +1,7 @@
 import type { MeasurementRow } from '../core/measurements';
 import type { SimulationRuntime, SimulationState } from '../core/simulation';
 import type { Diagnostic } from '../core/types';
+import { FieldWorkbenchController } from '../experiments/electric-field/FieldWorkbenchController';
 import { connectStandardCircuit } from '../experiments/ohms-law/createOhmsLaw';
 import type { PythonRuntimeClient } from '../programming/python/PythonRuntimeClient';
 import { BlocksPanelController } from './BlocksPanelController';
@@ -56,6 +57,7 @@ export interface AppElements {
 }
 
 type AppMode = 'manual' | 'blocks' | 'python';
+type AppSection = 'ohm' | 'fields';
 
 export function renderApp(
   root: HTMLElement,
@@ -66,21 +68,22 @@ export function renderApp(
     <div class="app-shell">
       <header class="topbar">
         <div class="brand"><span class="brand-mark">◎</span><strong>PHYSICS:<span>//LAB</span></strong></div>
-        <div class="breadcrumb"><span>Электричество</span><b>/</b> Закон Ома</div>
-        <div class="modes" aria-label="Режим работы">
+        <div class="breadcrumb" id="app-breadcrumb"><span>Электричество</span><b>/</b> Закон Ома</div>
+        <div class="modes" id="ohm-modes" aria-label="Режим работы">
           <button class="mode active" data-mode="manual">Manual</button>
           <button class="mode" data-mode="blocks">Blocks</button>
           <button class="mode" data-mode="python">Python</button>
         </div>
       </header>
       <aside class="sidebar">
-        <button class="nav-item active"><span>⌁</span> Эксперименты</button>
-        <button class="nav-item"><span>⌇</span> Поля</button>
-        <button class="nav-item"><span>△</span> Механика</button>
-        <button class="nav-item"><span>∿</span> Волны</button>
-        <button class="nav-item"><span>◁</span> Оптика</button>
+        <button class="nav-item active" id="nav-ohm"><span>Ω</span> Закон Ома</button>
+        <button class="nav-item" id="nav-fields"><span>⌁</span> Поля</button>
+        <button class="nav-item" disabled><span>△</span> Механика</button>
+        <button class="nav-item" disabled><span>∿</span> Волны</button>
+        <button class="nav-item" disabled><span>◁</span> Оптика</button>
       </aside>
-      <main class="workspace" data-mode="manual">
+
+      <main class="workspace" id="ohm-workspace" data-mode="manual">
         <section class="lab-card">
           <div class="scene-head">
             <div><span class="eyebrow">LIVE LAB</span><h1>Закон Ома для участка цепи</h1></div>
@@ -88,7 +91,7 @@ export function renderApp(
           </div>
           <div class="scene-wrap">
             <canvas id="lab-canvas" aria-label="Трёхмерная лабораторная установка"></canvas>
-            <div class="scene-hint" id="scene-hint">Выберите одну клемму, затем вторую — провод создастся автоматически.</div>
+            <div class="scene-hint" id="scene-hint">Клемма → клемма: создать провод · Провод: выбрать, Delete удалить · Esc отмена.</div>
           </div>
         </section>
 
@@ -177,6 +180,85 @@ export function renderApp(
           <div id="terminal-lines" class="terminal-lines"></div>
         </section>
       </main>
+
+      <main class="field-workspace" id="field-workspace" hidden>
+        <section class="field-scene-card">
+          <div class="field-scene-head">
+            <div><span class="eyebrow">SCIENTIFIC VISUALIZATION</span><h1>Поле заряженной прямоугольной пластины</h1></div>
+            <div id="field-status" class="field-status" data-state="loading">NUMPY · IDLE</div>
+          </div>
+          <div class="field-canvas-wrap">
+            <canvas id="field-canvas" aria-label="Векторное поле заряженной пластины"></canvas>
+            <div class="field-scene-note">Векторы вычисляет Python/NumPy. Babylon.js получает только координаты и компоненты E и отображает результат.</div>
+          </div>
+        </section>
+
+        <aside class="field-controls-card">
+          <div class="panel-title">Модель</div>
+          <label class="field-control">
+            <div class="field-control-head"><span>Ширина пластины</span><output id="field-width-value">2.00 м</output></div>
+            <input id="field-width" type="range" min="0.6" max="3" step="0.1" value="2" />
+          </label>
+          <label class="field-control">
+            <div class="field-control-head"><span>Высота пластины</span><output id="field-height-value">1.20 м</output></div>
+            <input id="field-height" type="range" min="0.5" max="2.5" step="0.1" value="1.2" />
+          </label>
+          <label class="field-control">
+            <div class="field-control-head"><span>Поверхностный заряд σ</span><output id="field-sigma-value">1.00 нКл/м²</output></div>
+            <input id="field-sigma" type="range" min="0.1" max="5" step="0.1" value="1" />
+          </label>
+          <label class="field-control">
+            <div class="field-control-head"><span>Сетка интегрирования</span><output id="field-resolution-value">36 × 22</output></div>
+            <input id="field-resolution" type="range" min="12" max="72" step="4" value="36" />
+          </label>
+          <label class="field-control">
+            <div class="field-control-head"><span>Положение датчика z</span><output id="field-probe-value">0.75 м</output></div>
+            <input id="field-probe-z" type="range" min="0.15" max="2.5" step="0.05" value="0.75" />
+          </label>
+          <button id="field-run" class="primary">Рассчитать поле</button>
+          <div id="field-error" class="field-error"></div>
+          <div class="field-probe-card">
+            <div class="eyebrow">ДАТЧИК НА ОСИ</div>
+            <div class="field-probe-row"><span>|E|</span><strong id="field-probe-e">—</strong></div>
+            <div class="field-probe-row"><span>E<sub>z</sub></span><strong id="field-probe-ez">—</strong></div>
+            <div class="field-probe-row"><span>mesh</span><strong id="field-mesh">—</strong></div>
+          </div>
+        </aside>
+
+        <section class="field-validation-card">
+          <div class="field-validation-head">
+            <div class="panel-title">Проверка модели</div>
+            <p>Мы проверяем не картинку, а численный расчёт.</p>
+          </div>
+          <div class="field-checks">
+            <div class="field-check" id="check-analytic" data-pass="false">
+              <div class="field-check-top"><span>Аналитическое решение</span><b data-check-badge>CHECK</b></div>
+              <div class="field-check-value" id="field-error-value">—</div>
+              <div class="field-check-detail">относительная ошибка на оси</div>
+            </div>
+            <div class="field-check" id="check-convergence" data-pass="false">
+              <div class="field-check-top"><span>Сходимость сетки</span><b data-check-badge>CHECK</b></div>
+              <div class="field-check-value" id="field-convergence">—</div>
+              <div class="field-check-detail">изменение E при удвоении nx, ny</div>
+            </div>
+            <div class="field-check" id="check-symmetry" data-pass="false">
+              <div class="field-check-top"><span>Симметрия</span><b data-check-badge>CHECK</b></div>
+              <div class="field-check-value" id="field-symmetry">—</div>
+              <div class="field-check-detail">√(Ex²+Ey²) / |Ez| на оси</div>
+            </div>
+            <div class="field-check" id="check-far" data-pass="false">
+              <div class="field-check-top"><span>Дальний предел</span><b data-check-badge>CHECK</b></div>
+              <div class="field-check-value" id="field-far">—</div>
+              <div class="field-check-detail">сравнение с точечным зарядом</div>
+            </div>
+          </div>
+          <div class="field-validation-meta">
+            <span>E<sub>num</sub> = <b id="field-numeric">—</b></span>
+            <span>E<sub>analytic</sub> = <b id="field-analytic">—</b></span>
+            <span>dA = Δx·Δy, источники берутся в центрах ячеек</span>
+          </div>
+        </section>
+      </main>
     </div>`;
 
   const canvas = root.querySelector<HTMLCanvasElement>('#lab-canvas');
@@ -186,18 +268,25 @@ export function renderApp(
   const measure = root.querySelector<HTMLButtonElement>('#measure');
   const clearWires = root.querySelector<HTMLButtonElement>('#clear-wires');
   const clearData = root.querySelector<HTMLButtonElement>('#clear-data');
-  const workspace = root.querySelector<HTMLElement>('.workspace');
+  const workspace = root.querySelector<HTMLElement>('#ohm-workspace');
+  const fieldWorkspace = root.querySelector<HTMLElement>('#field-workspace');
+  const modes = root.querySelector<HTMLElement>('#ohm-modes');
+  const breadcrumb = root.querySelector<HTMLElement>('#app-breadcrumb');
+  const navOhm = root.querySelector<HTMLButtonElement>('#nav-ohm');
+  const navFields = root.querySelector<HTMLButtonElement>('#nav-fields');
   const manualControls = root.querySelector<HTMLElement>('#manual-controls');
   const manualTerminal = root.querySelector<HTMLElement>('#manual-terminal');
   const blocksCard = root.querySelector<HTMLElement>('#blocks-card');
   const pythonCard = root.querySelector<HTMLElement>('#python-card');
-  if (!canvas || !voltage || !resistance || !preset || !measure || !clearWires || !clearData || !workspace || !manualControls || !manualTerminal || !blocksCard || !pythonCard) {
+  if (!canvas || !voltage || !resistance || !preset || !measure || !clearWires || !clearData || !workspace || !fieldWorkspace || !modes || !breadcrumb || !navOhm || !navFields || !manualControls || !manualTerminal || !blocksCard || !pythonCard) {
     throw new Error('Application shell failed to initialize.');
   }
 
   const pythonPanel = new PythonPanelController(root, runtime, pythonClient);
+  const fieldWorkbench = new FieldWorkbenchController(root);
   let blocksPanel: BlocksPanelController;
   let mode: AppMode = 'manual';
+  let section: AppSection = 'ohm';
 
   const setMode = (nextMode: AppMode): void => {
     mode = nextMode;
@@ -214,13 +303,29 @@ export function renderApp(
     if (mode !== 'python') pythonPanel.deactivate();
   };
 
+  const setSection = (nextSection: AppSection): void => {
+    section = nextSection;
+    workspace.hidden = section !== 'ohm';
+    fieldWorkspace.hidden = section !== 'fields';
+    modes.hidden = section !== 'ohm';
+    navOhm.classList.toggle('active', section === 'ohm');
+    navFields.classList.toggle('active', section === 'fields');
+    breadcrumb.innerHTML = section === 'ohm'
+      ? '<span>Электричество</span><b>/</b> Закон Ома'
+      : '<span>Электричество</span><b>/</b> Поле заряженной пластины';
+    if (section === 'fields') void fieldWorkbench.activate();
+  };
+
   blocksPanel = new BlocksPanelController(root, runtime, {
     onSendToPython: (code) => {
+      setSection('ohm');
       setMode('python');
       void pythonPanel.setProgram(code);
     },
   });
 
+  navOhm.addEventListener('click', () => setSection('ohm'));
+  navFields.addEventListener('click', () => setSection('fields'));
   root.querySelector<HTMLButtonElement>('.mode[data-mode="manual"]')?.addEventListener('click', () => setMode('manual'));
   root.querySelector<HTMLButtonElement>('.mode[data-mode="blocks"]')?.addEventListener('click', () => setMode('blocks'));
   root.querySelector<HTMLButtonElement>('.mode[data-mode="python"]')?.addEventListener('click', () => setMode('python'));
@@ -233,6 +338,7 @@ export function renderApp(
 
   const unsubscribe = runtime.subscribe((state) => updateUi(root, runtime, state));
   setMode(mode);
+  setSection(section);
 
   return {
     canvas,
@@ -240,6 +346,7 @@ export function renderApp(
       unsubscribe();
       blocksPanel.dispose();
       pythonPanel.dispose();
+      fieldWorkbench.dispose();
     },
   };
 }
@@ -274,8 +381,8 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
   const hint = root.querySelector<HTMLElement>('#scene-hint');
   if (hint) {
     hint.textContent = state.selectedTerminal
-      ? `Первая клемма выбрана: ${state.selectedTerminal}. Теперь выберите вторую.`
-      : 'Выберите одну клемму, затем вторую — провод создастся автоматически.';
+      ? `Первая клемма выбрана: ${state.selectedTerminal}. Наведите на вторую — зелёная подсветка означает snap. Esc отмена.`
+      : 'Клемма → клемма: создать провод · Провод: выбрать, Delete удалить · Esc отмена.';
   }
 
   const diagnosticPanel = root.querySelector<HTMLElement>('#diagnostics');
