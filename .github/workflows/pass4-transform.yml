@@ -1,0 +1,35 @@
+name: Ohm Pass 4 transform
+
+on:
+  push:
+    branches:
+      - agent/ohm-visual-pass4
+    paths:
+      - scripts/pass4-transform.mjs
+      - .github/workflows/pass4-transform.yml
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/ohm-visual-pass4
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Apply Pass 4 visual transform
+        run: node scripts/pass4-transform.mjs
+      - name: Commit transformed scene
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/rendering/babylon/LabScene.ts src/rendering/babylon/ProfessionalInstruments.ts src/ohm-polish.css
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm Pass 4: art-direct laboratory scene"
+          git push origin HEAD:agent/ohm-visual-pass4
