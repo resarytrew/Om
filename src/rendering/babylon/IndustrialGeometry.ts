@@ -18,7 +18,7 @@ function prepare(mesh: Mesh, material: IndustrialMaterial): Mesh {
 /**
  * Lightweight rounded rectangular enclosure built only from Babylon primitives.
  * Overlapping parts are intentional: this keeps the silhouette smooth without
- * coupling the rendering layer to a CSG or authored-asset pipeline.
+ * coupling the rendering layer to CSG or authored assets.
  */
 export function createRoundedEnclosure(
   scene: Scene,
@@ -31,19 +31,21 @@ export function createRoundedEnclosure(
   const r = Math.max(0.035, Math.min(radius, size.x * 0.24, size.y * 0.24));
   const meshes: Mesh[] = [];
 
-  meshes.push(prepare(MeshBuilder.CreateBox(
+  const coreX = prepare(MeshBuilder.CreateBox(
     `${name}-core-x`,
     { width: Math.max(0.02, size.x - r * 2), height: size.y, depth: size.z },
     scene,
-  ), material));
-  meshes.at(-1)!.position = center.clone();
+  ), material);
+  coreX.position = center.clone();
+  meshes.push(coreX);
 
-  meshes.push(prepare(MeshBuilder.CreateBox(
+  const coreY = prepare(MeshBuilder.CreateBox(
     `${name}-core-y`,
     { width: size.x, height: Math.max(0.02, size.y - r * 2), depth: size.z },
     scene,
-  ), material));
-  meshes.at(-1)!.position = center.clone();
+  ), material);
+  coreY.position = center.clone();
+  meshes.push(coreY);
 
   for (const sx of [-1, 1]) {
     for (const sy of [-1, 1]) {
