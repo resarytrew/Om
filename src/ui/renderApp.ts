@@ -2,6 +2,8 @@ import type { MeasurementRow } from '../core/measurements';
 import type { SimulationRuntime, SimulationState } from '../core/simulation';
 import type { Diagnostic } from '../core/types';
 import { connectStandardCircuit } from '../experiments/ohms-law/createOhmsLaw';
+import type { PythonRuntimeClient } from '../programming/python/PythonRuntimeClient';
+import { PythonPanelController } from './PythonPanelController';
 
 const fmt = (value: number, digits = 2): string =>
   Number.isFinite(value) ? value.toFixed(digits) : '∞';
@@ -13,7 +15,8 @@ function graph(rows: readonly MeasurementRow[]): string {
   const plotW = width - pad.l - pad.r;
   const plotH = height - pad.t - pad.b;
   const maxU = Math.max(12, ...rows.map((row) => row.voltage));
-  const maxI = Math.max(4, ...rows.map((row) => row.current).filter(Number.isFinite));
+  const finiteCurrents = rows.map((row) => row.current).filter(Number.isFinite);
+  const maxI = Math.max(4, ...finiteCurrents);
   const x = (u: number) => pad.l + (u / maxU) * plotW;
   const y = (i: number) => pad.t + plotH - (Math.min(i, maxI) / maxI) * plotH;
   const grid: string[] = [];
@@ -48,18 +51,25 @@ function diagnostics(items: readonly Diagnostic[]): string {
 
 export interface AppElements {
   readonly canvas: HTMLCanvasElement;
+  dispose(): void;
 }
 
-export function renderApp(root: HTMLElement, runtime: SimulationRuntime): AppElements {
+type AppMode = 'manual' | 'python';
+
+export function renderApp(
+  root: HTMLElement,
+  runtime: SimulationRuntime,
+  pythonClient: PythonRuntimeClient,
+): AppElements {
   root.innerHTML = `
     <div class="app-shell">
       <header class="topbar">
         <div class="brand"><span class="brand-mark">◎</span><strong>PHYSICS:<span>//LAB</span></strong></div>
         <div class="breadcrumb"><span>Электричество</span><b>/</b> Закон Ома</div>
         <div class="modes" aria-label="Режим работы">
-          <button class="mode active">Manual</button>
+          <button class="mode active" data-mode="manual">Manual</button>
           <button class="mode" disabled title="Следующий этап разработки">Blocks</button>
-          <button class="mode" disabled title="Следующий этап разработки">Python</button>
+          <button class="mode" data-mode="python">Python</button>
         </div>
       </header>
       <aside class="sidebar">
@@ -69,7 +79,7 @@ export function renderApp(root: HTMLElement, runtime: SimulationRuntime): AppEle
         <button class="nav-item"><span>∿</span> Волны</button>
         <button class="nav-item"><span>◁</span> Оптика</button>
       </aside>
-      <main class="workspace">
+      <main class="workspace" data-mode="manual">
         <section class="lab-card">
           <div class="scene-head">
             <div><span class="eyebrow">LIVE LAB</span><h1>Закон Ома для участка цепи</h1></div>
@@ -80,7 +90,7 @@ export function renderApp(root: HTMLElement, runtime: SimulationRuntime): AppEle
             <div class="scene-hint" id="scene-hint">Выберите одну клемму, затем вторую — провод создастся автоматически.</div>
           </div>
         </section>
-        <aside class="controls-card">
+        <aside class="controls-card" id="manual-controls">
           <div class="panel-title">Параметры</div>
           <label class="control-row">
             <span><b>Напряжение</b><small>Источник, U</small></span>
@@ -100,8 +110,28 @@ export function renderApp(root: HTMLElement, runtime: SimulationRuntime): AppEle
             <button id="clear-wires" class="ghost">Разобрать цепь</button>
           </div>
           <div id="diagnostics" class="diagnostics"></div>
-          <div class="architecture-note">Клеммы и провода уже являются частью модели цепи, а не декоративной SVG-анимацией.</div>
+          <div class="architecture-note">Клеммы и провода являются частью физической модели. Результат появляется только после анализа топологии цепи.</div>
         </aside>
+        <section class="python-card" id="python-card" hidden>
+          <div class="python-header">
+            <div>
+              <span class="eyebrow">PROGRAMMABLE EXPERIMENT</span>
+              <div class="python-title">Python Lab</div>
+            </div>
+            <div id="python-status" class="python-status" data-state="idle">PYTHON · IDLE</div>
+          </div>
+          <div id="python-editor" class="python-editor" aria-label="Редактор Python"></div>
+          <div class="python-actions">
+            <button id="python-run" class="primary">▶ Run experiment</button>
+            <button id="python-stop" class="secondary" disabled>■ Stop</button>
+            <button id="python-reset" class="ghost">Reset code</button>
+          </div>
+          <div class="python-console-shell">
+            <div class="terminal-title">&gt;_ PYTHON OUTPUT</div>
+            <div id="python-console" class="python-console"><div class="python-line normal">&gt; Python загрузится при открытии режима.</div></div>
+          </div>
+          <div class="python-footnote">Код выполняется настоящим CPython/Pyodide в Web Worker. Сцена обновляется через тот же SimulationRuntime, что и ручной режим.</div>
+        </section>
         <section class="data-card graph-card">
           <div class="panel-title row"><span>I(U)</span><button id="clear-data" class="text-button">Очистить</button></div>
           <div id="graph" class="graph"></div>
@@ -110,7 +140,7 @@ export function renderApp(root: HTMLElement, runtime: SimulationRuntime): AppEle
           <div class="panel-title">Измерения</div>
           <div class="table-wrap"><table><thead><tr><th>#</th><th>U, В</th><th>I, А</th><th>R, Ω</th><th>P, Вт</th></tr></thead><tbody id="measurements"></tbody></table></div>
         </section>
-        <section class="terminal-card">
+        <section class="terminal-card" id="manual-terminal">
           <div class="terminal-title">&gt;_ EXPERIMENT LOG</div>
           <div id="terminal-lines" class="terminal-lines"></div>
         </section>
@@ -124,10 +154,44 @@ export function renderApp(root: HTMLElement, runtime: SimulationRuntime): AppEle
   const measure = root.querySelector<HTMLButtonElement>('#measure');
   const clearWires = root.querySelector<HTMLButtonElement>('#clear-wires');
   const clearData = root.querySelector<HTMLButtonElement>('#clear-data');
-  if (!canvas || !voltage || !resistance || !preset || !measure || !clearWires || !clearData) {
+  const workspace = root.querySelector<HTMLElement>('.workspace');
+  const manualControls = root.querySelector<HTMLElement>('#manual-controls');
+  const manualTerminal = root.querySelector<HTMLElement>('#manual-terminal');
+  const pythonCard = root.querySelector<HTMLElement>('#python-card');
+  if (
+    !canvas ||
+    !voltage ||
+    !resistance ||
+    !preset ||
+    !measure ||
+    !clearWires ||
+    !clearData ||
+    !workspace ||
+    !manualControls ||
+    !manualTerminal ||
+    !pythonCard
+  ) {
     throw new Error('Application shell failed to initialize.');
   }
 
+  const pythonPanel = new PythonPanelController(root, runtime, pythonClient);
+  let mode: AppMode = 'manual';
+
+  const setMode = (nextMode: AppMode): void => {
+    mode = nextMode;
+    workspace.dataset.mode = mode;
+    manualControls.hidden = mode !== 'manual';
+    manualTerminal.hidden = mode !== 'manual';
+    pythonCard.hidden = mode !== 'python';
+    for (const button of root.querySelectorAll<HTMLButtonElement>('.mode[data-mode]')) {
+      button.classList.toggle('active', button.dataset.mode === mode);
+    }
+    if (mode === 'python') void pythonPanel.activate();
+    else pythonPanel.deactivate();
+  };
+
+  root.querySelector<HTMLButtonElement>('.mode[data-mode="manual"]')?.addEventListener('click', () => setMode('manual'));
+  root.querySelector<HTMLButtonElement>('.mode[data-mode="python"]')?.addEventListener('click', () => setMode('python'));
   voltage.addEventListener('input', () => runtime.setVoltage(Number(voltage.value)));
   resistance.addEventListener('input', () => runtime.setResistance(Number(resistance.value)));
   preset.addEventListener('click', () => connectStandardCircuit(runtime));
@@ -135,8 +199,16 @@ export function renderApp(root: HTMLElement, runtime: SimulationRuntime): AppEle
   clearWires.addEventListener('click', () => runtime.clearConnections());
   clearData.addEventListener('click', () => runtime.clearMeasurements());
 
-  runtime.subscribe((state) => updateUi(root, runtime, state));
-  return { canvas };
+  const unsubscribe = runtime.subscribe((state) => updateUi(root, runtime, state));
+  setMode(mode);
+
+  return {
+    canvas,
+    dispose: () => {
+      unsubscribe();
+      pythonPanel.dispose();
+    },
+  };
 }
 
 function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: SimulationState): void {
@@ -158,7 +230,12 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
 
   const status = root.querySelector<HTMLElement>('#circuit-status');
   if (status) {
-    status.textContent = state.result.status === 'closed' ? `Цепь замкнута · I = ${fmt(state.result.current, 3)} А` : state.result.status === 'short-circuit' ? 'Короткое замыкание' : 'Цепь разомкнута';
+    status.textContent =
+      state.result.status === 'closed'
+        ? `Цепь замкнута · I = ${fmt(state.result.current, 3)} А`
+        : state.result.status === 'short-circuit'
+          ? 'Короткое замыкание'
+          : 'Цепь разомкнута';
     status.dataset.state = state.result.status;
   }
 
@@ -172,14 +249,21 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
   const diagnosticPanel = root.querySelector<HTMLElement>('#diagnostics');
   if (diagnosticPanel) diagnosticPanel.innerHTML = diagnostics(state.result.diagnostics);
   const measureButton = root.querySelector<HTMLButtonElement>('#measure');
-  if (measureButton) measureButton.disabled = state.result.status !== 'closed' || !Number.isFinite(state.result.current);
+  if (measureButton) {
+    measureButton.disabled = state.result.status !== 'closed' || !Number.isFinite(state.result.current);
+  }
 
   const graphPanel = root.querySelector<HTMLElement>('#graph');
   if (graphPanel) graphPanel.innerHTML = graph(rows);
   const body = root.querySelector<HTMLTableSectionElement>('#measurements');
   if (body) {
     body.innerHTML = rows.length
-      ? rows.map((row) => `<tr><td>${row.id}</td><td>${fmt(row.voltage)}</td><td>${fmt(row.current, 3)}</td><td>${fmt(row.resistance)}</td><td>${fmt(row.power, 3)}</td></tr>`).join('')
+      ? rows
+          .map(
+            (row) =>
+              `<tr><td>${row.id}</td><td>${fmt(row.voltage)}</td><td>${fmt(row.current, 3)}</td><td>${fmt(row.resistance)}</td><td>${fmt(row.power, 3)}</td></tr>`,
+          )
+          .join('')
       : '<tr><td colspan="5" class="empty">Пока нет измерений.</td></tr>';
   }
 
@@ -191,7 +275,9 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
       `<div><span>&gt;</span> source.voltage <b>${fmt(voltageValue)} V</b></div>`,
       `<div><span>&gt;</span> resistor.resistance <b>${fmt(resistanceValue)} Ω</b></div>`,
       `<div><span>&gt;</span> ammeter.read() <b>${Number.isFinite(state.result.current) ? `${fmt(state.result.current, 3)} A` : 'OVERLOAD'}</b></div>`,
-      last ? `<div class="terminal-success">measurement[${last.id}] = { U: ${fmt(last.voltage)}, I: ${fmt(last.current, 3)}, R: ${fmt(last.resistance)} }</div>` : '',
+      last
+        ? `<div class="terminal-success">measurement[${last.id}] = { U: ${fmt(last.voltage)}, I: ${fmt(last.current, 3)}, R: ${fmt(last.resistance)} }</div>`
+        : '',
     ].join('');
   }
 }
