@@ -102,8 +102,6 @@ export const physicsLabTheme = Blockly.Theme.defineTheme('physicsLab', {
     cursorColour: '#58d7ff',
     selectedGlowColour: '#58d7ff',
     selectedGlowOpacity: 0.28,
-    replacementGlowColour: '#64d78f',
-    replacementGlowOpacity: 0.25,
   },
   fontStyle: {
     family: 'Inter, ui-sans-serif, system-ui, sans-serif',
