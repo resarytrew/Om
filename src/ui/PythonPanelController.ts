@@ -12,19 +12,17 @@ export class PythonPanelController {
   private status: PythonPanelStatus = 'idle';
   private activeRun: AbortController | null = null;
   private readonly consoleLines: string[] = [];
+  private pendingProgram: string | null = null;
 
   constructor(
     private readonly root: HTMLElement,
     private readonly runtime: SimulationRuntime,
     private readonly client: PythonRuntimeClient,
   ) {
-    this.root.querySelector<HTMLButtonElement>('#python-run')?.addEventListener('click', () => {
-      void this.run();
-    });
-    this.root.querySelector<HTMLButtonElement>('#python-stop')?.addEventListener('click', () => {
-      void this.stop();
-    });
+    this.root.querySelector<HTMLButtonElement>('#python-run')?.addEventListener('click', () => void this.run());
+    this.root.querySelector<HTMLButtonElement>('#python-stop')?.addEventListener('click', () => void this.stop());
     this.root.querySelector<HTMLButtonElement>('#python-reset')?.addEventListener('click', () => {
+      this.pendingProgram = null;
       this.editor?.setValue(DEFAULT_PYTHON_PROGRAM);
       this.appendConsole('Код восстановлен до примера эксперимента.');
     });
@@ -48,7 +46,11 @@ export class PythonPanelController {
       ]);
       const container = this.root.querySelector<HTMLElement>('#python-editor');
       if (!container) throw new Error('Python editor container was not found.');
-      this.editor = editorModule.createPythonEditor(container, DEFAULT_PYTHON_PROGRAM);
+      this.editor = editorModule.createPythonEditor(
+        container,
+        this.pendingProgram ?? DEFAULT_PYTHON_PROGRAM,
+      );
+      this.pendingProgram = null;
       this.setStatus('ready');
       this.appendConsole(`Pyodide ${version} готов. Python выполняется в отдельном Web Worker.`);
       this.editor.focus();
@@ -56,6 +58,16 @@ export class PythonPanelController {
       this.setStatus('error');
       this.appendConsole(`Ошибка инициализации: ${this.message(error)}`);
     }
+  }
+
+  async setProgram(code: string): Promise<void> {
+    this.pendingProgram = code;
+    if (!this.editor) await this.activate();
+    if (!this.editor) return;
+    this.editor.setValue(code);
+    this.pendingProgram = null;
+    this.appendConsole('Код сгенерирован из Experiment AST визуальной программы.');
+    this.editor.focus();
   }
 
   deactivate(): void {
