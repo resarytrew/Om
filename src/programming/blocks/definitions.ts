@@ -80,6 +80,7 @@ const definitionJson = [
 ] as const;
 
 export const physicsLabTheme = Blockly.Theme.defineTheme('physicsLab', {
+  name: 'physicsLab',
   base: Blockly.Themes.Classic,
   blockStyles: {
     event_blocks: { colourPrimary: '#28576a', colourSecondary: '#37748b', colourTertiary: '#1c3f4d' },
