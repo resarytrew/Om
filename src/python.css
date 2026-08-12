@@ -1,0 +1,120 @@
+[hidden] { display: none !important; }
+
+.workspace[data-mode="python"] {
+  grid-template-columns: minmax(650px, 1.18fr) minmax(520px, .92fr);
+  grid-template-areas:
+    "lab python"
+    "graph python"
+    "table python";
+  grid-template-rows: minmax(470px, 54vh) 286px 250px;
+}
+
+.workspace[data-mode="python"] .lab-card { min-height: 470px; }
+.workspace[data-mode="python"] .graph-card { min-height: 286px; }
+.workspace[data-mode="python"] .table-card { min-height: 250px; }
+
+.python-card {
+  grid-area: python;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(420px, 1fr) auto minmax(180px, .32fr) auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #101419;
+}
+
+.python-header {
+  min-height: 66px;
+  padding: 13px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  border-bottom: 1px solid var(--line-soft);
+  background: #13171c;
+}
+
+.python-title {
+  margin-top: 4px;
+  font-size: 17px;
+  font-weight: 650;
+  color: #e4ebef;
+}
+
+.python-status {
+  flex: 0 0 auto;
+  padding: 7px 9px;
+  border: 1px solid #34414b;
+  border-radius: 6px;
+  color: #8996a0;
+  font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .04em;
+}
+.python-status[data-state="ready"] { color: var(--green); border-color: #315642; background: #111c16; }
+.python-status[data-state="running"] { color: var(--cyan); border-color: #31566a; background: #101c22; }
+.python-status[data-state="loading"] { color: var(--yellow); border-color: #5c5134; }
+.python-status[data-state="error"] { color: var(--red); border-color: #6b373c; background: #211316; }
+
+.python-editor {
+  min-height: 420px;
+  background: #101419;
+}
+
+.python-actions {
+  display: grid;
+  grid-template-columns: 1.35fr .72fr .72fr;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  background: #13171c;
+}
+.python-actions button {
+  min-height: 38px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.python-actions button:disabled { opacity: .42; cursor: not-allowed; }
+
+.python-console-shell {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 36px 1fr;
+  background: #0d1115;
+}
+.python-console-shell .terminal-title {
+  padding: 11px 14px;
+  border-right: 0;
+  border-bottom: 1px solid #1e262d;
+}
+.python-console {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px 14px;
+  font: 11.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #aab4bc;
+}
+.python-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.python-line.stdout { color: #cbd4da; }
+.python-line.event { color: #83cfe7; }
+.python-line.success { color: var(--green); }
+.python-line.error { color: var(--red); }
+
+.python-footnote {
+  padding: 9px 13px;
+  border-top: 1px solid var(--line-soft);
+  color: #66737d;
+  background: #11151a;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1380px) {
+  .workspace[data-mode="python"] {
+    grid-template-columns: minmax(610px, 1.12fr) minmax(480px, .88fr);
+  }
+  .python-card { grid-template-rows: auto minmax(380px, 1fr) auto minmax(170px, .32fr) auto; }
+  .python-editor { min-height: 380px; }
+}
