@@ -5,17 +5,24 @@ import {
   DynamicTexture,
   Engine,
   HemisphericLight,
+  LinesMesh,
   Mesh,
   MeshBuilder,
   PBRMaterial,
   PointLight,
+  PointerEventTypes,
   Scene,
   StandardMaterial,
   Vector3,
-  type AbstractMesh,
 } from '@babylonjs/core';
 import type { SimulationRuntime, SimulationState } from '../../core/simulation';
-import { terminalId, type Connection, type TerminalId } from '../../core/types';
+import {
+  connectionId,
+  terminalId,
+  type Connection,
+  type ConnectionId,
+  type TerminalId,
+} from '../../core/types';
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 
 interface MeterReadout {
@@ -29,12 +36,27 @@ interface TerminalVisual {
   readonly material: StandardMaterial;
 }
 
+interface WireVisual {
+  readonly mesh: Mesh;
+  readonly material: StandardMaterial;
+  readonly baseColor: Color3;
+}
+
+interface PickMetadata {
+  readonly terminalId?: string;
+  readonly connectionId?: string;
+}
+
 export class LabScene {
   private readonly engine: Engine;
   private readonly scene: Scene;
   private readonly terminalMeshes = new Map<string, TerminalVisual>();
-  private readonly connectionMeshes = new Map<string, AbstractMesh>();
+  private readonly connectionMeshes = new Map<string, WireVisual>();
   private readonly readouts = new Map<string, MeterReadout>();
+  private bench: Mesh | null = null;
+  private previewWire: LinesMesh | null = null;
+  private hoveredTerminal: TerminalId | null = null;
+  private selectedConnection: ConnectionId | null = null;
   private unsubscribe: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
@@ -42,6 +64,7 @@ export class LabScene {
     private readonly canvas: HTMLCanvasElement,
     private readonly runtime: SimulationRuntime,
   ) {
+    this.canvas.tabIndex = 0;
     this.engine = new Engine(canvas, true, {
       antialias: true,
       preserveDrawingBuffer: false,
@@ -50,17 +73,20 @@ export class LabScene {
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(0.055, 0.065, 0.075, 1);
     this.buildScene();
-    this.bindPicking();
+    this.bindInteractions();
     this.unsubscribe = runtime.subscribe((state) => this.applyState(state));
 
     this.engine.runRenderLoop(() => this.scene.render());
     this.resizeObserver = new ResizeObserver(() => this.engine.resize());
     this.resizeObserver.observe(canvas);
+    this.canvas.addEventListener('keydown', this.handleKeyDown);
   }
 
   dispose(): void {
     this.unsubscribe?.();
     this.resizeObserver?.disconnect();
+    this.canvas.removeEventListener('keydown', this.handleKeyDown);
+    this.previewWire?.dispose();
     this.scene.dispose();
     this.engine.dispose();
   }
@@ -88,6 +114,7 @@ export class LabScene {
     groundMaterial.metallic = 0.08;
     groundMaterial.roughness = 0.78;
     ground.material = groundMaterial;
+    this.bench = ground;
 
     this.createSource(new Vector3(-3.55, 0.56, -0.75));
     this.createResistor(new Vector3(-0.15, 0.34, 0.1));
@@ -189,7 +216,7 @@ export class LabScene {
     const material = this.simpleMaterial(`terminal-material:${id}`, color);
     mesh.material = material;
     mesh.isPickable = true;
-    mesh.metadata = { terminalId: id };
+    mesh.metadata = { terminalId: id } satisfies PickMetadata;
     this.terminalMeshes.set(id, { mesh, material });
   }
 
@@ -200,11 +227,140 @@ export class LabScene {
     return material;
   }
 
-  private bindPicking(): void {
-    this.scene.onPointerDown = (_event, pickResult) => {
-      const terminal = (pickResult.pickedMesh?.metadata as { terminalId?: string } | null)?.terminalId;
-      if (terminal) this.runtime.chooseTerminal(terminalId(terminal));
-    };
+  private bindInteractions(): void {
+    this.scene.onPointerObservable.add((pointerInfo) => {
+      const metadata = (pointerInfo.pickInfo?.pickedMesh?.metadata ?? null) as PickMetadata | null;
+
+      if (pointerInfo.type === PointerEventTypes.POINTERMOVE) {
+        this.handlePointerMove(metadata);
+        return;
+      }
+
+      if (pointerInfo.type !== PointerEventTypes.POINTERDOWN) return;
+      this.canvas.focus({ preventScroll: true });
+
+      if (metadata?.terminalId) {
+        this.selectedConnection = null;
+        this.runtime.chooseTerminal(terminalId(metadata.terminalId));
+        this.refreshConnectionStyles();
+        return;
+      }
+
+      if (metadata?.connectionId) {
+        this.runtime.cancelTerminalSelection();
+        this.selectedConnection = connectionId(metadata.connectionId);
+        this.clearPreviewWire();
+        this.refreshConnectionStyles();
+        return;
+      }
+
+      this.selectedConnection = null;
+      this.hoveredTerminal = null;
+      this.runtime.cancelTerminalSelection();
+      this.clearPreviewWire();
+      this.refreshConnectionStyles();
+    });
+  }
+
+  private handlePointerMove(metadata: PickMetadata | null): void {
+    const selectedTerminal = this.runtime.getState().selectedTerminal;
+    const nextHovered = metadata?.terminalId && metadata.terminalId !== selectedTerminal
+      ? terminalId(metadata.terminalId)
+      : null;
+    this.hoveredTerminal = nextHovered;
+
+    if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
+    else if (metadata?.connectionId) this.canvas.style.cursor = 'pointer';
+    else this.canvas.style.cursor = selectedTerminal ? 'crosshair' : 'default';
+
+    this.refreshTerminals(selectedTerminal, this.hoveredTerminal);
+
+    if (!selectedTerminal) {
+      this.clearPreviewWire();
+      return;
+    }
+
+    const from = this.terminalMeshes.get(selectedTerminal)?.mesh.position;
+    if (!from) {
+      this.clearPreviewWire();
+      return;
+    }
+
+    const snapped = this.hoveredTerminal
+      ? this.terminalMeshes.get(this.hoveredTerminal)?.mesh.position
+      : null;
+    const groundPick = !snapped && this.bench
+      ? this.scene.pick(this.scene.pointerX, this.scene.pointerY, (mesh) => mesh === this.bench)
+      : null;
+    const pointerPoint = snapped?.clone() ?? groundPick?.pickedPoint?.clone() ?? null;
+
+    if (!pointerPoint) {
+      this.clearPreviewWire();
+      return;
+    }
+
+    if (!snapped) pointerPoint.y = Math.max(pointerPoint.y + 0.12, 0.12);
+    this.updatePreviewWire(from, pointerPoint, Boolean(snapped));
+  }
+
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      this.runtime.cancelTerminalSelection();
+      this.selectedConnection = null;
+      this.hoveredTerminal = null;
+      this.clearPreviewWire();
+      this.refreshConnectionStyles();
+      event.preventDefault();
+      return;
+    }
+
+    if ((event.key === 'Delete' || event.key === 'Backspace') && this.selectedConnection) {
+      const connection = this.selectedConnection;
+      this.selectedConnection = null;
+      this.runtime.removeConnection(connection);
+      this.clearPreviewWire();
+      event.preventDefault();
+    }
+  };
+
+  private updatePreviewWire(from: Vector3, to: Vector3, snapped: boolean): void {
+    const points = this.createWirePath(from, to, 0.45);
+    if (!this.previewWire) {
+      this.previewWire = MeshBuilder.CreateLines(
+        'wire-preview',
+        { points, updatable: true },
+        this.scene,
+      );
+      this.previewWire.isPickable = false;
+      this.previewWire.alpha = 0.88;
+    } else {
+      this.previewWire = MeshBuilder.CreateLines(
+        'wire-preview',
+        { points, instance: this.previewWire },
+      );
+    }
+    this.previewWire.color = snapped
+      ? new Color3(0.35, 0.84, 0.55)
+      : new Color3(0.35, 0.76, 0.92);
+  }
+
+  private clearPreviewWire(): void {
+    this.previewWire?.dispose();
+    this.previewWire = null;
+  }
+
+  private createWirePath(from: Vector3, to: Vector3, liftScale = 0.7): Vector3[] {
+    const distance = Vector3.Distance(from, to);
+    const mid = Vector3.Lerp(from, to, 0.5).add(
+      new Vector3(0, Math.min(liftScale, 0.14 + distance * 0.055), 0),
+    );
+    return [
+      from.clone(),
+      Vector3.Lerp(from, mid, 0.5),
+      mid,
+      Vector3.Lerp(mid, to, 0.5),
+      to.clone(),
+    ];
   }
 
   private applyState(state: SimulationState): void {
@@ -215,25 +371,37 @@ export class LabScene {
     this.drawReadout('resistor', resistor?.kind === 'resistor' ? resistor.resistance : 0);
     this.drawReadout('ammeter', state.result.measurements[ids.ammeter]?.current ?? 0);
     this.drawReadout('voltmeter', state.result.measurements[ids.voltmeter]?.voltage ?? 0);
-    this.refreshTerminals(state.selectedTerminal);
+    this.refreshTerminals(state.selectedTerminal, this.hoveredTerminal);
     this.refreshConnections(snapshot.connections);
+
+    if (!state.selectedTerminal) this.clearPreviewWire();
   }
 
-  private refreshTerminals(selected: TerminalId | null): void {
+  private refreshTerminals(selected: TerminalId | null, hovered: TerminalId | null): void {
     for (const [id, visual] of this.terminalMeshes) {
       const active = id === selected;
-      visual.material.emissiveColor = active ? new Color3(0.1, 0.65, 0.85) : Color3.Black();
-      visual.mesh.scaling.setAll(active ? 1.25 : 1);
+      const candidate = Boolean(selected) && id === hovered && id !== selected;
+      visual.material.emissiveColor = active
+        ? new Color3(0.1, 0.65, 0.85)
+        : candidate
+          ? new Color3(0.13, 0.6, 0.31)
+          : Color3.Black();
+      visual.mesh.scaling.setAll(active ? 1.25 : candidate ? 1.18 : 1);
     }
   }
 
   private refreshConnections(connections: readonly Connection[]): void {
     const activeIds = new Set(connections.map((connection) => connection.id as string));
-    for (const [id, mesh] of this.connectionMeshes) {
+    for (const [id, visual] of this.connectionMeshes) {
       if (!activeIds.has(id)) {
-        mesh.dispose();
+        visual.mesh.dispose();
+        visual.material.dispose();
         this.connectionMeshes.delete(id);
       }
+    }
+
+    if (this.selectedConnection && !activeIds.has(this.selectedConnection)) {
+      this.selectedConnection = null;
     }
 
     for (const connection of connections) {
@@ -241,15 +409,37 @@ export class LabScene {
       const from = this.terminalMeshes.get(connection.from)?.mesh.position;
       const to = this.terminalMeshes.get(connection.to)?.mesh.position;
       if (!from || !to) continue;
-      const distance = Vector3.Distance(from, to);
-      const mid = Vector3.Lerp(from, to, 0.5).add(new Vector3(0, Math.min(0.7, 0.16 + distance * 0.06), 0));
-      const path = [from.clone(), Vector3.Lerp(from, mid, 0.5), mid, Vector3.Lerp(mid, to, 0.5), to.clone()];
-      const tube = MeshBuilder.CreateTube(`wire:${connection.id}`, { path, radius: 0.055, tessellation: 16 }, this.scene);
+      const path = this.createWirePath(from, to);
+      const tube = MeshBuilder.CreateTube(
+        `wire:${connection.id}`,
+        { path, radius: 0.06, tessellation: 16 },
+        this.scene,
+      );
       const fromTerminal = this.runtime.circuit.getTerminal(connection.from);
       const toTerminal = this.runtime.circuit.getTerminal(connection.to);
       const red = fromTerminal.polarity === 'positive' || toTerminal.polarity === 'positive';
-      tube.material = this.simpleMaterial(`wire-material:${connection.id}`, red ? new Color3(0.66, 0.05, 0.08) : new Color3(0.045, 0.05, 0.055));
-      this.connectionMeshes.set(connection.id, tube);
+      const baseColor = red
+        ? new Color3(0.66, 0.05, 0.08)
+        : new Color3(0.045, 0.05, 0.055);
+      const material = this.simpleMaterial(`wire-material:${connection.id}`, baseColor);
+      tube.material = material;
+      tube.isPickable = true;
+      tube.metadata = { connectionId: connection.id } satisfies PickMetadata;
+      this.connectionMeshes.set(connection.id, { mesh: tube, material, baseColor });
+    }
+
+    this.refreshConnectionStyles();
+  }
+
+  private refreshConnectionStyles(): void {
+    for (const [id, visual] of this.connectionMeshes) {
+      const selected = id === this.selectedConnection;
+      visual.material.diffuseColor = selected
+        ? new Color3(0.2, 0.55, 0.68)
+        : visual.baseColor;
+      visual.material.emissiveColor = selected
+        ? new Color3(0.08, 0.28, 0.35)
+        : Color3.Black();
     }
   }
 }
