@@ -37,7 +37,7 @@ export class BlocksPanelController {
 
   async activate(): Promise<void> {
     if (this.workspace) {
-      Blockly.svgResize(this.workspace);
+      this.workspace.resize();
       this.updatePreview();
       return;
     }
