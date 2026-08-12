@@ -23,7 +23,7 @@ export class ElectricFieldScene {
   private vectors: LinesMesh | null = null;
   private resizeObserver: ResizeObserver | null = null;
 
-  constructor(private readonly canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas, true, { antialias: true, stencil: true });
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(0.045, 0.055, 0.065, 1);
