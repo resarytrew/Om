@@ -10,8 +10,8 @@
 
 .scene-wrap {
   background:
-    radial-gradient(circle at 50% 18%, rgba(129, 176, 207, .08), transparent 48%),
-    linear-gradient(180deg, #101a22 0%, #0d141a 100%);
+    radial-gradient(circle at 48% 12%, rgba(170, 196, 211, .055), transparent 42%),
+    linear-gradient(180deg, #0a1116 0%, #080d11 100%);
 }
 
 .scene-wrap::after {
@@ -27,7 +27,7 @@
 #lab-canvas {
   position: relative;
   z-index: 0;
-  filter: saturate(.98) contrast(1.015);
+  filter: saturate(.94) contrast(1.025);
 }
 
 .scene-hint {
@@ -36,7 +36,7 @@
   bottom: 12px;
   padding: 8px 11px;
   border-color: rgba(120, 142, 156, .32);
-  background: rgba(13, 19, 24, .74);
+  background: rgba(10, 15, 19, .68);
   box-shadow: 0 10px 28px rgba(0, 0, 0, .18);
   color: #b7c1c8;
   backdrop-filter: blur(10px);

@@ -64,7 +64,7 @@ class DigitalDisplay {
 
     const material = new StandardMaterial(`${spec.id}-display-material`, scene);
     material.diffuseTexture = this.texture;
-    material.emissiveColor = new Color3(0.035, 0.13, 0.145);
+    material.emissiveColor = new Color3(0.055, 0.205, 0.22);
     material.specularColor = new Color3(0.2, 0.35, 0.38);
     material.disableLighting = true;
     material.backFaceCulling = false;
@@ -90,7 +90,7 @@ class DigitalDisplay {
       : `OVER ${this.spec.unit}`;
     const context = this.texture.getContext();
     context.clearRect(0, 0, 640, 220);
-    context.fillStyle = '#071013';
+    context.fillStyle = '#03090b';
     context.fillRect(0, 0, 640, 220);
     this.texture.drawText(
       text,
@@ -98,7 +98,7 @@ class DigitalDisplay {
       146,
       `600 ${this.spec.fontSize ?? 92}px ui-monospace, SFMono-Regular, Menlo, monospace`,
       this.spec.textColor ?? '#73e7ff',
-      '#071013',
+      '#03090b',
       true,
     );
   }
@@ -249,9 +249,9 @@ export class PowerSupplyVisual {
     sourceMinus: TerminalId,
     registerTerminal: TerminalRegistrar,
   ) {
-    const width = 2.82;
-    const height = 1.7;
-    const depth = 1.58;
+    const width = 2.62;
+    const height = 1.64;
+    const depth = 1.46;
     const bodyCenter = new Vector3(position.x, 0.94, position.z);
     const frontZ = position.z - depth / 2 - 0.055;
 
@@ -489,9 +489,9 @@ export class AnalogMeterVisual {
     registerTerminal: TerminalRegistrar,
   ) {
     this.max = spec.max;
-    const width = spec.width ?? 2.18;
-    const height = spec.height ?? 1.82;
-    const depth = 0.92;
+    const width = spec.width ?? 2.08;
+    const height = spec.height ?? 1.78;
+    const depth = 0.84;
     const p = spec.position;
     const frontZ = p.z - depth / 2 - 0.055;
 
@@ -573,7 +573,7 @@ export class AnalogMeterVisual {
       { width: faceWidth * 1.02, height: faceHeight * 1.02 },
       scene,
     );
-    glass.position = new Vector3(p.x, 1.17, frontZ - 0.172);
+    glass.position = new Vector3(p.x, 1.17, frontZ - 0.168);
     glass.rotation.y = Math.PI;
     glass.material = theme.glass;
     glass.isPickable = false;
@@ -593,8 +593,8 @@ export class AnalogMeterVisual {
 
     this.display = new DigitalDisplay(scene, theme, {
       id: `${spec.id}-digital`,
-      width: 0.83,
-      height: 0.23,
+      width: 0.9,
+      height: 0.24,
       unit: spec.unit,
       decimals: spec.decimals,
       position: new Vector3(p.x, 0.44, frontZ - 0.13),
@@ -665,7 +665,7 @@ export class AnalogMeterVisual {
     );
     texture.hasAlpha = false;
     const ctx = texture.getContext();
-    ctx.fillStyle = '#f1efe7';
+    ctx.fillStyle = '#f4f1e8';
     ctx.fillRect(0, 0, 1200, 660);
 
     ctx.strokeStyle = '#c9c7bf';
@@ -777,7 +777,7 @@ export class ResistorModuleVisual {
     this.ceramicMaterial = theme.ceramic.clone('power-resistor-ceramic');
     const ceramic = MeshBuilder.CreateCylinder(
       'power-resistor-body',
-      { height: 1.46, diameter: 0.46, tessellation: 44 },
+      { height: 1.42, diameter: 0.44, tessellation: 44 },
       scene,
     );
     ceramic.position = new Vector3(position.x, 0.84, position.z + 0.04);
