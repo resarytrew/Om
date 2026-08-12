@@ -3,6 +3,7 @@ import {
   Color3,
   Color4,
   Curve3,
+  DefaultRenderingPipeline,
   DirectionalLight,
   Engine,
   HemisphericLight,
@@ -80,10 +81,10 @@ export class LabScene {
       stencil: true,
     });
     this.scene = new Scene(this.engine);
-    this.scene.clearColor = new Color4(0.055, 0.073, 0.088, 1);
-    this.scene.ambientColor = new Color3(0.07, 0.08, 0.09);
-    this.scene.imageProcessingConfiguration.contrast = 1.08;
-    this.scene.imageProcessingConfiguration.exposure = 1.16;
+    this.scene.clearColor = new Color4(0.018, 0.025, 0.03, 1);
+    this.scene.ambientColor = new Color3(0.035, 0.04, 0.045);
+    this.scene.imageProcessingConfiguration.contrast = 1.1;
+    this.scene.imageProcessingConfiguration.exposure = 1.08;
     this.theme = createInstrumentTheme(this.scene);
 
     this.buildScene();
@@ -115,78 +116,86 @@ export class LabScene {
     const camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2,
-      1.27,
-      10.15,
-      new Vector3(-0.05, 0.76, 0.52),
+      1.315,
+      9.6,
+      new Vector3(-0.02, 0.83, 0.58),
       this.scene,
     );
-    camera.fov = 0.66;
-    camera.lowerRadiusLimit = 9.3;
-    camera.upperRadiusLimit = 11.2;
-    camera.lowerBetaLimit = 1.18;
-    camera.upperBetaLimit = 1.35;
-    camera.lowerAlphaLimit = -1.72;
-    camera.upperAlphaLimit = -1.43;
-    camera.wheelPrecision = 150;
+    camera.fov = 0.6;
+    camera.lowerRadiusLimit = 9.1;
+    camera.upperRadiusLimit = 10.4;
+    camera.lowerBetaLimit = 1.25;
+    camera.upperBetaLimit = 1.36;
+    camera.lowerAlphaLimit = -1.67;
+    camera.upperAlphaLimit = -1.47;
+    camera.wheelPrecision = 180;
     camera.panningSensibility = 0;
     camera.attachControl(this.canvas, true);
+
+    const pipeline = new DefaultRenderingPipeline('ohm-render-pipeline', true, this.scene, [camera]);
+    pipeline.fxaaEnabled = true;
+    pipeline.samples = 2;
+    pipeline.bloomEnabled = true;
+    pipeline.bloomThreshold = 0.96;
+    pipeline.bloomWeight = 0.055;
+    pipeline.bloomKernel = 48;
+    pipeline.bloomScale = 0.5;
 
     const hemi = new HemisphericLight(
       'ambient-lab-light',
       new Vector3(-0.1, 1, -0.16),
       this.scene,
     );
-    hemi.intensity = 0.82;
-    hemi.diffuse = new Color3(0.93, 0.96, 1);
-    hemi.groundColor = new Color3(0.22, 0.24, 0.26);
+    hemi.intensity = 0.48;
+    hemi.diffuse = new Color3(0.88, 0.92, 0.95);
+    hemi.groundColor = new Color3(0.11, 0.12, 0.13);
 
     const key = new DirectionalLight(
       'softbox-key',
       new Vector3(0.34, -1, 0.42),
       this.scene,
     );
-    key.position = new Vector3(-5.2, 7.5, -5.6);
-    key.intensity = 2.0;
-    key.diffuse = new Color3(1.0, 0.94, 0.86);
+    key.position = new Vector3(-4.8, 7.2, -5.4);
+    key.intensity = 1.72;
+    key.diffuse = new Color3(1.0, 0.91, 0.8);
 
     const fill = new PointLight(
       'softbox-fill',
       new Vector3(4.4, 3.8, -3.6),
       this.scene,
     );
-    fill.intensity = 24;
-    fill.diffuse = new Color3(0.72, 0.86, 1.0);
+    fill.intensity = 11.5;
+    fill.diffuse = new Color3(0.67, 0.82, 0.95);
+
+    const frontFill = new PointLight(
+      'front-soft-fill',
+      new Vector3(-0.4, 2.2, -5.1),
+      this.scene,
+    );
+    frontFill.intensity = 7.5;
+    frontFill.diffuse = new Color3(0.94, 0.95, 0.94);
 
     const rim = new PointLight(
       'back-rim',
       new Vector3(-0.8, 4.8, 3.15),
       this.scene,
     );
-    rim.intensity = 15;
-    rim.diffuse = new Color3(0.56, 0.72, 0.86);
+    rim.intensity = 8.5;
+    rim.diffuse = new Color3(0.5, 0.7, 0.86);
 
     const shadow = new ShadowGenerator(2048, key);
     shadow.useBlurExponentialShadowMap = true;
-    shadow.blurKernel = 28;
-    shadow.bias = 0.0007;
-    shadow.normalBias = 0.025;
-
-    const studioFloor = MeshBuilder.CreateGround(
-      'studio-floor',
-      { width: 15.5, height: 11.5 },
-      this.scene,
-    );
-    studioFloor.position = new Vector3(0, -0.25, 1.4);
-    studioFloor.material = this.theme.backdrop;
-    studioFloor.receiveShadows = true;
-    studioFloor.isPickable = false;
+    shadow.blurKernel = 34;
+    shadow.bias = 0.00065;
+    shadow.normalBias = 0.024;
+    shadow.darkness = 0.28;
 
     const backdrop = MeshBuilder.CreateBox(
       'studio-backdrop',
-      { width: 13.5, height: 5.4, depth: 0.16 },
+      { width: 30, height: 12, depth: 0.2 },
       this.scene,
     );
-    backdrop.position = new Vector3(0, 2.45, 3.62);
+    backdrop.position = new Vector3(0, 4.8, 6.3);
     backdrop.material = this.theme.backdrop;
     backdrop.receiveShadows = true;
     backdrop.isPickable = false;
@@ -196,13 +205,13 @@ export class LabScene {
       { width: 11.6, height: 0.055, depth: 0.055 },
       this.scene,
     );
-    wallRail.position = new Vector3(0, 1.02, 3.52);
+    wallRail.position = new Vector3(0, 1.22, 3.55);
     wallRail.material = this.theme.darkMetal;
     wallRail.isPickable = false;
 
     const ground = MeshBuilder.CreateGround(
       'bench-pick-surface',
-      { width: 11.65, height: 6.15 },
+      { width: 11.55, height: 5.85 },
       this.scene,
     );
     ground.position.y = 0.005;
@@ -212,7 +221,7 @@ export class LabScene {
 
     const benchSlab = MeshBuilder.CreateBox(
       'bench-slab',
-      { width: 11.85, height: 0.19, depth: 6.35 },
+      { width: 11.72, height: 0.2, depth: 6.02 },
       this.scene,
     );
     benchSlab.position.y = -0.105;
@@ -222,10 +231,10 @@ export class LabScene {
 
     const mat = MeshBuilder.CreateBox(
       'bench-mat',
-      { width: 10.1, height: 0.035, depth: 4.95 },
+      { width: 9.9, height: 0.028, depth: 4.6 },
       this.scene,
     );
-    mat.position = new Vector3(0, 0.033, 0.4);
+    mat.position = new Vector3(0, 0.027, 0.48);
     mat.material = this.theme.benchMat;
     mat.receiveShadows = true;
     mat.isPickable = false;
@@ -235,7 +244,7 @@ export class LabScene {
       { width: 11.82, height: 0.18, depth: 0.13 },
       this.scene,
     );
-    frontLip.position = new Vector3(0, -0.08, -3.11);
+    frontLip.position = new Vector3(0, -0.08, -2.94);
     frontLip.material = this.theme.darkMetal;
     frontLip.isPickable = false;
 
@@ -257,7 +266,7 @@ export class LabScene {
     this.source = new PowerSupplyVisual(
       this.scene,
       this.theme,
-      new Vector3(-3.28, 0, 0.34),
+      new Vector3(-3.12, 0, 0.4),
       ids.sourcePlus,
       ids.sourceMinus,
       registerTerminal,
@@ -280,8 +289,8 @@ export class LabScene {
         label: 'ammeter',
         unit: 'A',
         max: 4,
-        decimals: 3,
-        position: new Vector3(2.72, 0, 0.28),
+        decimals: 2,
+        position: new Vector3(2.62, 0, 0.34),
         plus: ids.ammeterPlus,
         minus: ids.ammeterMinus,
       },
@@ -297,11 +306,11 @@ export class LabScene {
         unit: 'V',
         max: 12,
         decimals: 2,
-        position: new Vector3(0.82, 0, 2.0),
+        position: new Vector3(0.86, 0, 1.93),
         plus: ids.voltmeterPlus,
         minus: ids.voltmeterMinus,
-        width: 2.04,
-        height: 1.72,
+        width: 1.96,
+        height: 1.67,
       },
       registerTerminal,
     );
@@ -309,7 +318,6 @@ export class LabScene {
     for (const mesh of this.scene.meshes) {
       if (
         mesh === ground
-        || mesh === studioFloor
         || mesh === backdrop
         || mesh.name.includes('glass')
         || mesh.name.includes('display')
@@ -326,7 +334,7 @@ export class LabScene {
   ): Mesh {
     const metalBase = MeshBuilder.CreateCylinder(
       `terminal-base:${id}`,
-      { height: 0.17, diameter: 0.4, tessellation: 40 },
+      { height: 0.15, diameter: 0.35, tessellation: 40 },
       this.scene,
     );
     metalBase.position = position.add(new Vector3(0, 0, 0.07));
@@ -336,7 +344,7 @@ export class LabScene {
 
     const ring = MeshBuilder.CreateTorus(
       `terminal-ring:${id}`,
-      { diameter: 0.39, thickness: 0.052, tessellation: 44 },
+      { diameter: 0.34, thickness: 0.045, tessellation: 44 },
       this.scene,
     );
     ring.position = position.add(new Vector3(0, 0, -0.025));
@@ -346,7 +354,7 @@ export class LabScene {
 
     const cap = MeshBuilder.CreateCylinder(
       `terminal:${id}`,
-      { height: 0.2, diameter: 0.3, tessellation: 40 },
+      { height: 0.18, diameter: 0.265, tessellation: 40 },
       this.scene,
     );
     cap.position = position.add(new Vector3(0, 0, -0.09));
@@ -450,7 +458,7 @@ export class LabScene {
       return;
     }
 
-    if (!snapped) pointerPoint.y = Math.max(pointerPoint.y + 0.09, 0.09);
+    if (!snapped) pointerPoint.y = Math.max(pointerPoint.y + 0.075, 0.075);
     this.updatePreviewWire(from, pointerPoint, Boolean(snapped));
   }
 
@@ -475,7 +483,7 @@ export class LabScene {
   };
 
   private updatePreviewWire(from: Vector3, to: Vector3, snapped: boolean): void {
-    const points = this.createWirePath(from, to);
+    const points = this.createWirePath(from, to, 0);
     if (!this.previewWire) {
       this.previewWire = MeshBuilder.CreateLines(
         'wire-preview',
@@ -500,22 +508,32 @@ export class LabScene {
     this.previewWire = null;
   }
 
-  private createWirePath(from: Vector3, to: Vector3): Vector3[] {
+  private wireLane(id: string): number {
+    let hash = 0;
+    for (let index = 0; index < id.length; index += 1) {
+      hash = (hash * 31 + id.charCodeAt(index)) | 0;
+    }
+    return ((Math.abs(hash) % 5) - 2) * 0.22;
+  }
+
+  private createWirePath(from: Vector3, to: Vector3, lane: number): Vector3[] {
     const distance = Vector3.Distance(from, to);
-    const tableY = 0.12;
-    const forwardOffset = Math.min(0.72, 0.28 + distance * 0.08);
-    const frontZ = Math.min(from.z, to.z) - forwardOffset;
-    const first = from.add(new Vector3(0, -0.04, -0.16));
-    const last = to.add(new Vector3(0, -0.04, -0.16));
-    const middleA = Vector3.Lerp(from, to, 0.34);
-    middleA.y = Math.max(tableY, Math.min(from.y, to.y) * 0.48);
-    middleA.z = Math.min(middleA.z, frontZ);
-    const middleB = Vector3.Lerp(from, to, 0.66);
-    middleB.y = Math.max(tableY, Math.min(from.y, to.y) * 0.45);
-    middleB.z = Math.min(middleB.z, frontZ + 0.04);
+    const tableY = 0.082;
+    const frontOffset = 0.28 + Math.min(0.55, distance * 0.065);
+    const routeZ = Math.min(from.z, to.z) - frontOffset - Math.abs(lane) * 0.2;
+    const first = from.add(new Vector3(0, -0.08, -0.16));
+    const last = to.add(new Vector3(0, -0.08, -0.16));
+    const middleA = Vector3.Lerp(from, to, 0.3);
+    middleA.x += lane;
+    middleA.y = tableY;
+    middleA.z = Math.min(middleA.z, routeZ);
+    const middleB = Vector3.Lerp(from, to, 0.7);
+    middleB.x -= lane * 0.45;
+    middleB.y = tableY;
+    middleB.z = Math.min(middleB.z, routeZ + 0.06);
     return Curve3.CreateCatmullRomSpline(
       [from.clone(), first, middleA, middleB, last, to.clone()],
-      10,
+      12,
       false,
     ).getPoints();
   }
@@ -583,21 +601,22 @@ export class LabScene {
       const to = this.terminalMeshes.get(connection.to)?.mesh.position;
       if (!from || !to) continue;
 
-      const path = this.createWirePath(from, to);
+      const path = this.createWirePath(from, to, this.wireLane(connection.id));
       const fromTerminal = this.runtime.circuit.getTerminal(connection.from);
       const toTerminal = this.runtime.circuit.getTerminal(connection.to);
       const red = fromTerminal.polarity === 'positive' || toTerminal.polarity === 'positive';
       const baseColor = red
-        ? new Color3(0.58, 0.018, 0.028)
-        : new Color3(0.022, 0.026, 0.03);
+        ? new Color3(0.5, 0.012, 0.022)
+        : new Color3(0.012, 0.015, 0.018);
       const material = new PBRMaterial(`wire-material:${connection.id}`, this.scene);
       material.albedoColor = baseColor;
       material.metallic = 0.0;
-      material.roughness = 0.86;
+      material.roughness = 0.94;
+      material.environmentIntensity = 0.32;
 
       const tube = MeshBuilder.CreateTube(
         `wire:${connection.id}`,
-        { path, radius: 0.062, tessellation: 22, cap: Mesh.CAP_ALL },
+        { path, radius: 0.046, tessellation: 20, cap: Mesh.CAP_ALL },
         this.scene,
       );
       tube.material = material;
@@ -635,7 +654,7 @@ export class LabScene {
   ): Mesh[] {
     const sleeve = MeshBuilder.CreateCylinder(
       `${name}-sleeve`,
-      { height: 0.28, diameterTop: 0.16, diameterBottom: 0.23, tessellation: 32 },
+      { height: 0.24, diameterTop: 0.135, diameterBottom: 0.19, tessellation: 32 },
       this.scene,
     );
     sleeve.position = terminalPosition.add(new Vector3(0, 0, -0.27));
@@ -646,7 +665,7 @@ export class LabScene {
 
     const collar = MeshBuilder.CreateCylinder(
       `${name}-collar`,
-      { height: 0.07, diameter: 0.19, tessellation: 30 },
+      { height: 0.055, diameter: 0.165, tessellation: 30 },
       this.scene,
     );
     collar.position = terminalPosition.add(new Vector3(0, 0, -0.155));
@@ -656,7 +675,7 @@ export class LabScene {
 
     const strainRelief = MeshBuilder.CreateCylinder(
       `${name}-strain-relief`,
-      { height: 0.14, diameterTop: 0.13, diameterBottom: 0.18, tessellation: 30 },
+      { height: 0.12, diameterTop: 0.105, diameterBottom: 0.155, tessellation: 30 },
       this.scene,
     );
     strainRelief.position = terminalPosition.add(new Vector3(0, 0, -0.455));
