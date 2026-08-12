@@ -1,6 +1,7 @@
 import './styles.css';
 import './blocks.css';
 import './python.css';
+import './field.css';
 import { createOhmsLawRuntime } from './experiments/ohms-law/createOhmsLaw';
 import { PythonRuntimeClient } from './programming/python/PythonRuntimeClient';
 import { LabScene } from './rendering/babylon/LabScene';
