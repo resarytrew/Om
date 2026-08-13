@@ -30,6 +30,7 @@ import {
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
 import { installOhmGlbShells } from './GlbInstrumentShells';
+import { PhysicalCable, PhysicalCableSystem, type CableCollider } from './PhysicalCable';
 import {
   AnalogMeterVisual,
   PowerSupplyVisual,
@@ -44,7 +45,8 @@ interface TerminalVisual {
 }
 
 interface WireVisual {
-  readonly meshes: readonly Mesh[];
+  readonly cable: PhysicalCable;
+  readonly plugs: readonly Mesh[];
   readonly material: PBRMaterial;
   readonly baseColor: Color3;
 }
@@ -60,6 +62,7 @@ export class LabScene {
   private readonly theme: InstrumentTheme;
   private readonly terminalMeshes = new Map<string, TerminalVisual>();
   private readonly connectionMeshes = new Map<string, WireVisual>();
+  private cablePhysics!: PhysicalCableSystem;
   private bench: Mesh | null = null;
   private previewWire: LinesMesh | null = null;
   private hoveredTerminal: TerminalId | null = null;
@@ -102,6 +105,7 @@ export class LabScene {
       this.source.tick(dt);
       this.ammeter.tick(dt);
       this.voltmeter.tick(dt);
+      this.cablePhysics.step(dt);
       this.scene.render();
     });
     this.resizeObserver = new ResizeObserver(() => this.engine.resize());
@@ -114,6 +118,7 @@ export class LabScene {
     this.resizeObserver?.disconnect();
     this.canvas.removeEventListener('keydown', this.handleKeyDown);
     this.previewWire?.dispose();
+    this.cablePhysics.dispose();
     this.scene.dispose();
     this.engine.dispose();
   }
@@ -327,6 +332,17 @@ export class LabScene {
       },
       registerTerminal,
     );
+
+    // Cable collision volumes deliberately extend a little in front of every
+    // face panel. This prevents a physical lead from crossing dial/display
+    // textures while still allowing it to settle on the top and around sides.
+    const cableColliders: CableCollider[] = [
+      { min: new Vector3(-4.78, -0.5, 0.52), max: new Vector3(-1.9, 1.94, 2.3) },
+      { min: new Vector3(-2.12, -0.5, -1.38), max: new Vector3(0.72, 1.18, -0.08) },
+      { min: new Vector3(2.42, -0.5, -0.98), max: new Vector3(4.68, 1.95, 0.16) },
+      { min: new Vector3(0.4, -0.5, 1.12), max: new Vector3(2.56, 1.86, 2.24) },
+    ];
+    this.cablePhysics = new PhysicalCableSystem(cableColliders, 0.045);
 
     for (const mesh of this.scene.meshes) {
       if (
@@ -619,7 +635,8 @@ export class LabScene {
     const activeIds = new Set(connections.map((connection) => connection.id as string));
     for (const [id, visual] of this.connectionMeshes) {
       if (!activeIds.has(id)) {
-        for (const mesh of visual.meshes) mesh.dispose();
+        this.cablePhysics.remove(visual.cable);
+        for (const mesh of visual.plugs) mesh.dispose();
         visual.material.dispose();
         this.connectionMeshes.delete(id);
       }
@@ -635,7 +652,6 @@ export class LabScene {
       const to = this.terminalMeshes.get(connection.to)?.mesh.position;
       if (!from || !to) continue;
 
-      const path = this.createWirePath(from, to, this.wireLane(connection.id));
       const fromTerminal = this.runtime.circuit.getTerminal(connection.from);
       const toTerminal = this.runtime.circuit.getTerminal(connection.to);
       const red = fromTerminal.polarity === 'positive' || toTerminal.polarity === 'positive';
@@ -648,14 +664,21 @@ export class LabScene {
       material.roughness = 0.94;
       material.environmentIntensity = 0.32;
 
-      const tube = MeshBuilder.CreateTube(
-        `wire:${connection.id}`,
-        { path, radius: 0.046, tessellation: 20, cap: Mesh.CAP_ALL },
+      const cable = new PhysicalCable(
         this.scene,
+        connection.id,
+        from,
+        to,
+        material,
+        {
+          radius: 0.046,
+          particleCount: 24,
+          laneOffset: this.wireLane(connection.id),
+          leadOut: 0.34,
+        },
       );
-      tube.material = material;
-      tube.isPickable = true;
-      tube.metadata = { connectionId: connection.id } satisfies PickMetadata;
+      cable.mesh.metadata = { connectionId: connection.id } satisfies PickMetadata;
+      this.cablePhysics.add(cable);
 
       const plugFrom = this.createBananaPlug(
         `plug-from:${connection.id}`,
@@ -671,7 +694,8 @@ export class LabScene {
       );
 
       this.connectionMeshes.set(connection.id, {
-        meshes: [tube, ...plugFrom, ...plugTo],
+        cable,
+        plugs: [...plugFrom, ...plugTo],
         material,
         baseColor,
       });
