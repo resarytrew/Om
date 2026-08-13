@@ -32,7 +32,7 @@ import {
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
 import { installOhmGlbShells } from './GlbInstrumentShells';
-import { clampInstrumentAnchor, instrumentFromNodeName, normalizeInstrumentRotation, STANDARD_INSTRUMENT_ANCHORS, type InstrumentId } from './InstrumentPlacement';
+import { clampInstrumentAnchor, instrumentFromNodeName, normalizeInstrumentRotation, smoothInstrumentRotation, STANDARD_INSTRUMENT_ANCHORS, type InstrumentId } from './InstrumentPlacement';
 import { PhysicalCable, PhysicalCableSystem, type CableCollider } from './PhysicalCable';
 import { clampRotaryTravel, normalizeAngleDelta, rotaryTravelToValue } from './RotaryControl';
 import {
@@ -57,6 +57,7 @@ interface WireVisual {
   readonly to: TerminalId;
   readonly material: PBRMaterial;
   readonly baseColor: Color3;
+  revealProgress: number;
 }
 
 interface PickMetadata {
@@ -98,6 +99,9 @@ export class LabScene {
   private instrumentRotateCenterX = 0;
   private instrumentRotateCenterY = 0;
   private instrumentRotateLastAngle = 0;
+  private readonly instrumentRotationTargets = new Map<InstrumentId, number>();
+  private readonly instrumentEntrances = new Map<InstrumentId, { elapsed: number; duration: number }>();
+  private interactionLocked = false;
 
   private source!: PowerSupplyVisual;
   private resistor!: ResistorModuleVisual;
@@ -135,6 +139,8 @@ export class LabScene {
       this.resistor.tick(dt);
       this.ammeter.tick(dt);
       this.voltmeter.tick(dt);
+      this.updateInstrumentMotion(dt);
+      this.updateWireReveals(dt);
       this.syncMovingConnections();
       this.cablePhysics.step(dt);
       this.scene.render();
@@ -146,6 +152,7 @@ export class LabScene {
     this.canvas.addEventListener('lab:place-instrument', this.handlePlaceInstrumentEvent as EventListener);
     this.canvas.addEventListener('lab:arrange-standard', this.handleArrangeStandard as EventListener);
     this.canvas.addEventListener('lab:clear-bench', this.handleClearBench as EventListener);
+    this.canvas.addEventListener('lab:set-interaction-lock', this.handleInteractionLock as EventListener);
     this.canvas.addEventListener('contextmenu', this.handleContextMenu);
   }
 
@@ -157,6 +164,7 @@ export class LabScene {
     this.canvas.removeEventListener('lab:place-instrument', this.handlePlaceInstrumentEvent as EventListener);
     this.canvas.removeEventListener('lab:arrange-standard', this.handleArrangeStandard as EventListener);
     this.canvas.removeEventListener('lab:clear-bench', this.handleClearBench as EventListener);
+    this.canvas.removeEventListener('lab:set-interaction-lock', this.handleInteractionLock as EventListener);
     this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
     this.previewWire?.dispose();
     this.cablePhysics.dispose();
@@ -184,9 +192,9 @@ export class LabScene {
     this.camera.upperBetaLimit = 1.48;
     this.camera.lowerAlphaLimit = -Math.PI + 0.16;
     this.camera.upperAlphaLimit = -0.16;
-    this.camera.wheelPrecision = 34;
-    this.camera.pinchPrecision = 72;
-    this.camera.inertia = 0.82;
+    this.camera.wheelPrecision = 48;
+    this.camera.pinchPrecision = 90;
+    this.camera.inertia = 0.9;
     this.camera.panningSensibility = 95;
     this.camera.attachControl(this.canvas, true, true);
     this.canvas.style.cursor = 'default';
@@ -408,6 +416,7 @@ export class LabScene {
       const standard = STANDARD_INSTRUMENT_ANCHORS[id];
       root.setPivotPoint(new Vector3(standard.x, 0, standard.z));
       this.instrumentRoots.set(id, root);
+      this.instrumentRotationTargets.set(id, 0);
     }
 
     for (const node of [...this.scene.transformNodes]) {
@@ -492,6 +501,7 @@ export class LabScene {
 
   private bindInteractions(): void {
     this.scene.onPointerObservable.add((pointerInfo) => {
+      if (this.interactionLocked) return;
       const metadata = (pointerInfo.pickInfo?.pickedMesh?.metadata ?? null) as PickMetadata | null;
 
       if (pointerInfo.type === PointerEventTypes.POINTERDOWN && (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance')) {
@@ -761,29 +771,35 @@ export class LabScene {
     if (!root) return;
     const standard = STANDARD_INSTRUMENT_ANCHORS[id];
     const currentAnchor = new Vector3(standard.x + root.position.x, 0, standard.z + root.position.z);
-    root.rotation.y = normalizeInstrumentRotation(root.rotation.y + delta);
-    const clamped = clampInstrumentAnchor(id, currentAnchor, root.rotation.y);
+    const currentTarget = this.instrumentRotationTargets.get(id) ?? root.rotation.y;
+    const nextTarget = normalizeInstrumentRotation(currentTarget + delta);
+    this.instrumentRotationTargets.set(id, nextTarget);
+    const clamped = clampInstrumentAnchor(id, currentAnchor, nextTarget);
     root.position.x = clamped.x - standard.x;
     root.position.z = clamped.z - standard.z;
-    this.refreshCableColliders();
   }
 
-  private placeAtStandard(id: InstrumentId): void {
+  private placeAtStandard(id: InstrumentId, animate = false): void {
     const standard = STANDARD_INSTRUMENT_ANCHORS[id];
     const root = this.instrumentRoots.get(id);
-    if (root) root.rotation.y = 0;
+    if (root) {
+      root.rotation.y = 0;
+      root.scaling.setAll(1);
+    }
+    this.instrumentRotationTargets.set(id, 0);
     this.moveInstrument(id, new Vector3(standard.x, 0, standard.z));
+    if (animate) this.beginInstrumentEntrance(id);
   }
 
   private readonly handlePlaceInstrumentEvent = (rawEvent: Event): void => {
-    const event = rawEvent as CustomEvent<{ instrument?: string; clientX?: number; clientY?: number }>;
+    const event = rawEvent as CustomEvent<{ instrument?: string; clientX?: number; clientY?: number; animate?: boolean }>;
     const instrument = event.detail?.instrument as InstrumentId | undefined;
     if (!instrument || !this.instrumentRoots.has(instrument)) return;
     const point = typeof event.detail.clientX === 'number' && typeof event.detail.clientY === 'number'
       ? this.pickBenchAtClient(event.detail.clientX, event.detail.clientY)
       : null;
     if (point) this.moveInstrument(instrument, point);
-    else this.placeAtStandard(instrument);
+    else this.placeAtStandard(instrument, Boolean(event.detail?.animate));
   };
 
   private readonly handleArrangeStandard = (): void => {
@@ -793,7 +809,14 @@ export class LabScene {
   private readonly handleClearBench = (): void => {
     this.finishInstrumentDrag();
     this.finishInstrumentRotate();
-    for (const root of this.instrumentRoots.values()) root.setEnabled(false);
+    for (const [id, root] of this.instrumentRoots) {
+      root.setEnabled(false);
+      root.position.y = 0;
+      root.scaling.setAll(1);
+      root.rotation.y = 0;
+      this.instrumentRotationTargets.set(id, 0);
+    }
+    this.instrumentEntrances.clear();
     this.placedInstruments.clear();
     this.refreshCableColliders();
     this.clearPreviewWire();
@@ -806,7 +829,7 @@ export class LabScene {
     if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) {
       this.canvas.releasePointerCapture?.(pointerId);
     }
-    this.camera.attachControl(this.canvas, true, true);
+    if (!this.interactionLocked) this.camera.attachControl(this.canvas, true, true);
   }
 
   private finishInstrumentRotate(pointerId?: number): void {
@@ -815,11 +838,68 @@ export class LabScene {
     if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) {
       this.canvas.releasePointerCapture?.(pointerId);
     }
-    this.camera.attachControl(this.canvas, true, true);
+    if (!this.interactionLocked) this.camera.attachControl(this.canvas, true, true);
   }
 
   private readonly handleContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
+  };
+
+  private beginInstrumentEntrance(id: InstrumentId): void {
+    const root = this.instrumentRoots.get(id);
+    if (!root) return;
+    root.position.y = 0.72;
+    root.scaling.setAll(0.94);
+    this.instrumentEntrances.set(id, { elapsed: 0, duration: 0.58 });
+  }
+
+  private updateInstrumentMotion(dt: number): void {
+    let collidersDirty = false;
+    for (const [id, root] of this.instrumentRoots) {
+      const target = this.instrumentRotationTargets.get(id) ?? root.rotation.y;
+      const next = smoothInstrumentRotation(root.rotation.y, target, dt, 11);
+      if (Math.abs(normalizeInstrumentRotation(next - root.rotation.y)) > 1e-5) {
+        root.rotation.y = next;
+        collidersDirty = true;
+      }
+
+      const entrance = this.instrumentEntrances.get(id);
+      if (!entrance) continue;
+      entrance.elapsed += dt;
+      const t = Math.min(1, entrance.elapsed / entrance.duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      root.position.y = 0.72 * (1 - eased);
+      root.scaling.setAll(0.94 + 0.06 * eased);
+      collidersDirty = true;
+      if (t >= 1) {
+        root.position.y = 0;
+        root.scaling.setAll(1);
+        this.instrumentEntrances.delete(id);
+      }
+    }
+    if (collidersDirty) this.refreshCableColliders();
+  }
+
+  private updateWireReveals(dt: number): void {
+    for (const visual of this.connectionMeshes.values()) {
+      if (visual.revealProgress >= 1) continue;
+      visual.revealProgress = Math.min(1, visual.revealProgress + dt / 0.46);
+      const t = visual.revealProgress;
+      const eased = 1 - Math.pow(1 - t, 3);
+      visual.cable.mesh.visibility = eased;
+      for (const plug of visual.plugs) plug.visibility = eased;
+    }
+  }
+
+  private readonly handleInteractionLock = (rawEvent: Event): void => {
+    const event = rawEvent as CustomEvent<{ locked?: boolean }>;
+    const locked = Boolean(event.detail?.locked);
+    this.finishInstrumentDrag();
+    this.finishInstrumentRotate();
+    this.finishInstrumentControl();
+    this.interactionLocked = locked;
+    if (locked) this.camera.detachControl();
+    else this.camera.attachControl(this.canvas, true, true);
   };
 
   private emitInstrumentPresence(): void {
@@ -885,10 +965,11 @@ export class LabScene {
     if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) {
       this.canvas.releasePointerCapture?.(pointerId);
     }
-    this.camera.attachControl(this.canvas, true, true);
+    if (!this.interactionLocked) this.camera.attachControl(this.canvas, true, true);
   }
 
   private readonly handleControlWheel = (event: WheelEvent): void => {
+    if (this.interactionLocked) return;
     const pick = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
     const metadata = (pick?.pickedMesh?.metadata ?? null) as PickMetadata | null;
     const direction = event.deltaY < 0 ? 1 : -1;
@@ -1104,6 +1185,9 @@ export class LabScene {
         connection.id,
       );
 
+      cable.mesh.visibility = 0.02;
+      for (const plug of [...plugFrom, ...plugTo]) plug.visibility = 0.02;
+
       this.connectionMeshes.set(connection.id, {
         cable,
         plugs: [...plugFrom, ...plugTo],
@@ -1113,6 +1197,7 @@ export class LabScene {
         to: connection.to,
         material,
         baseColor,
+        revealProgress: 0,
       });
     }
 

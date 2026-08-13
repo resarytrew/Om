@@ -4,6 +4,7 @@ import {
   instrumentFromNodeName,
   instrumentHalfExtents,
   normalizeInstrumentRotation,
+  smoothInstrumentRotation,
   STANDARD_INSTRUMENT_ANCHORS,
 } from '../src/rendering/babylon/InstrumentPlacement';
 
@@ -44,5 +45,20 @@ describe('instrument placement', () => {
     const rotated = clampInstrumentAnchor('ammeter', { x: 100, z: -100 }, Math.PI / 2);
     expect(rotated.x).toBeLessThan(4.9);
     expect(rotated.z).toBeGreaterThan(-1.78);
+  });
+
+  it('smoothly approaches a target rotation without jumping across the wrap boundary', () => {
+    const current = Math.PI - 0.08;
+    const target = -Math.PI + 0.08;
+    const next = smoothInstrumentRotation(current, target, 1 / 60, 11);
+    const travelled = Math.abs(normalizeInstrumentRotation(next - current));
+    expect(travelled).toBeGreaterThan(0);
+    expect(travelled).toBeLessThan(0.08);
+
+    let value = 0;
+    for (let frame = 0; frame < 120; frame += 1) {
+      value = smoothInstrumentRotation(value, Math.PI / 2, 1 / 60, 11);
+    }
+    expect(value).toBeCloseTo(Math.PI / 2, 3);
   });
 });

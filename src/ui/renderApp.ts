@@ -3,8 +3,8 @@ import type { SimulationRuntime, SimulationState } from '../core/simulation';
 import type { Diagnostic } from '../core/types';
 import { FieldWorkbenchController } from '../experiments/electric-field/FieldWorkbenchController';
 import {
-  connectStandardCircuit,
   getOhmsLawInstrumentModel,
+  ids,
   setOhmsLawInstrumentModel,
   type InstrumentModel,
 } from '../experiments/ohms-law/createOhmsLaw';
@@ -14,6 +14,8 @@ import { PythonPanelController } from './PythonPanelController';
 
 const fmt = (value: number, digits = 2): string =>
   Number.isFinite(value) ? value.toFixed(digits) : '∞';
+
+const wait = (ms: number): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 function graph(rows: readonly MeasurementRow[]): string {
   const width = 620;
@@ -318,6 +320,7 @@ export function renderApp(
   let blocksPanel: BlocksPanelController;
   let mode: AppMode = 'manual';
   let section: AppSection = 'ohm';
+  let standardBuildSequence = 0;
 
   const setMode = (nextMode: AppMode): void => {
     mode = nextMode;
@@ -421,10 +424,66 @@ export function renderApp(
     }
   }) as EventListener);
 
-  preset.addEventListener('click', () => {
-    canvas.dispatchEvent(new CustomEvent('lab:arrange-standard'));
-    connectStandardCircuit(runtime);
-  });
+  const setStandardBuildBusy = (busy: boolean, label = 'Собрать эталонную цепь'): void => {
+    preset.disabled = busy;
+    preset.classList.toggle('assembling', busy);
+    preset.textContent = label;
+    clearWires.disabled = busy;
+    clearBench.disabled = busy;
+    voltage.disabled = busy;
+    resistance.disabled = busy;
+    for (const item of root.querySelectorAll<HTMLButtonElement>('[data-equipment]')) {
+      item.disabled = busy;
+      item.draggable = !busy;
+    }
+  };
+
+  const runStandardBuild = async (): Promise<void> => {
+    const token = ++standardBuildSequence;
+    setStandardBuildBusy(true, 'Подготовка стола…');
+    canvas.dispatchEvent(new CustomEvent('lab:set-interaction-lock', { detail: { locked: true } }));
+    runtime.clearConnections();
+    canvas.dispatchEvent(new CustomEvent('lab:clear-bench'));
+
+    try {
+      await wait(180);
+      const instruments = ['source', 'resistor', 'ammeter', 'voltmeter'] as const;
+      for (let index = 0; index < instruments.length; index += 1) {
+        if (token !== standardBuildSequence) return;
+        setStandardBuildBusy(true, `Приборы ${index + 1}/${instruments.length}…`);
+        canvas.dispatchEvent(new CustomEvent('lab:place-instrument', {
+          detail: { instrument: instruments[index], animate: true },
+        }));
+        await wait(index === 0 ? 540 : 460);
+      }
+
+      const connections = [
+        [ids.sourcePlus, ids.resistorA],
+        [ids.resistorB, ids.ammeterPlus],
+        [ids.ammeterMinus, ids.sourceMinus],
+        [ids.voltmeterPlus, ids.resistorA],
+        [ids.voltmeterMinus, ids.resistorB],
+      ] as const;
+
+      await wait(180);
+      for (let index = 0; index < connections.length; index += 1) {
+        if (token !== standardBuildSequence) return;
+        setStandardBuildBusy(true, `Провода ${index + 1}/${connections.length}…`);
+        const [from, to] = connections[index]!;
+        runtime.circuit.connect(from, to);
+        runtime.recalculate();
+        await wait(560);
+      }
+      await wait(260);
+    } finally {
+      if (token === standardBuildSequence) {
+        canvas.dispatchEvent(new CustomEvent('lab:set-interaction-lock', { detail: { locked: false } }));
+        setStandardBuildBusy(false);
+      }
+    }
+  };
+
+  preset.addEventListener('click', () => { void runStandardBuild(); });
   measure.addEventListener('click', () => runtime.captureMeasurement());
   clearWires.addEventListener('click', () => runtime.clearConnections());
   clearBench.addEventListener('click', () => {
