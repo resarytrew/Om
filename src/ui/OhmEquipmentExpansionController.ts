@@ -7,7 +7,7 @@ export class OhmEquipmentExpansionController {
   private resistorButton: HTMLButtonElement | null = null;
 
   constructor(
-    private readonly root: HTMLElement,
+    root: HTMLElement,
     private readonly canvas: HTMLCanvasElement,
   ) {
     const grid = root.querySelector<HTMLElement>('.equipment-grid');
