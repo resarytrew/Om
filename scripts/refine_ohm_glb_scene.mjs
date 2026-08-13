@@ -10,10 +10,7 @@ function patch(path, replacements) {
 }
 
 patch('src/rendering/babylon/LabScene.ts', [
-  [
-    '  Color4,\n  Curve3,',
-    '  Color4,\n  CubeTexture,\n  Curve3,',
-  ],
+  ['  Color4,\n  Curve3,', '  Color4,\n  CubeTexture,\n  Curve3,'],
   [
 `    this.theme = createInstrumentTheme(this.scene);`,
 `    this.theme = createInstrumentTheme(this.scene);
@@ -44,17 +41,11 @@ patch('src/rendering/babylon/LabScene.ts', [
     wallRail.isPickable = false;
     wallRail.setEnabled(false);`,
   ],
-  [
-`        position: new Vector3(0.86, 0, 1.93),`,
-`        position: new Vector3(0.68, 0, 2.04),`,
-  ],
+  ['        position: new Vector3(0.86, 0, 1.93),', '        position: new Vector3(0.68, 0, 2.04),'],
 ]);
 
 patch('src/rendering/babylon/GlbInstrumentShells.ts', [
-  [
-`      position: new Vector3(0.86, 0.96, 1.93),`,
-`      position: new Vector3(0.68, 0.96, 2.04),`,
-  ],
+  ['      position: new Vector3(0.86, 0.96, 1.93),', '      position: new Vector3(0.68, 0.96, 2.04),'],
 ]);
 
 patch('src/rendering/babylon/ProfessionalInstruments.ts', [
@@ -67,17 +58,12 @@ patch('src/rendering/babylon/ProfessionalInstruments.ts', [
 `  private readonly needlePivot: TransformNode;`,
   ],
   [
-`    const strip = 0.07;
+`  const strip = 0.07;
   const depth = 0.055;`,
-`    const strip = 0.045;
+`  const strip = 0.045;
   const depth = 0.042;`,
   ],
-  [
-`    face.rotation.y = Math.PI;
-    face.isPickable = false;`,
-`    face.rotation.y = 0;
-    face.isPickable = false;`,
-  ],
+  ['    face.rotation.y = Math.PI;\n    face.isPickable = false;', '    face.rotation.y = 0;\n    face.isPickable = false;'],
   [
 `    faceMaterial.emissiveColor = new Color3(0.16, 0.16, 0.145);
     faceMaterial.backFaceCulling = false;`,
@@ -85,12 +71,7 @@ patch('src/rendering/babylon/ProfessionalInstruments.ts', [
     faceMaterial.specularColor = new Color3(0.12, 0.12, 0.11);
     faceMaterial.backFaceCulling = false;`,
   ],
-  [
-`    glass.rotation.y = Math.PI;
-    glass.material = theme.glass;`,
-`    glass.rotation.y = 0;
-    glass.material = theme.glass;`,
-  ],
+  ['    glass.rotation.y = Math.PI;\n    glass.material = theme.glass;', '    glass.rotation.y = 0;\n    glass.material = theme.glass;'],
   [
 "      [`LAB ${spec.label.toUpperCase()}`],\n      '#20282c',\n      'transparent',\n      34,\n      28,",
 "      [`DC ${spec.label.toUpperCase()}`],\n      '#20282c',\n      'transparent',\n      38,\n      28,",
@@ -110,10 +91,7 @@ patch('src/rendering/babylon/ProfessionalInstruments.ts', [
 `,
     '',
   ],
-  [
-`    this.warningLed.position = new Vector3(p.x + 0.7, 0.44, frontZ - 0.18);`,
-`    this.warningLed.position = new Vector3(p.x + 0.72, 0.37, frontZ - 0.18);`,
-  ],
+  ['    this.warningLed.position = new Vector3(p.x + 0.7, 0.44, frontZ - 0.18);', '    this.warningLed.position = new Vector3(p.x + 0.72, 0.37, frontZ - 0.18);'],
   [
 `    this.display.setValue(overload ? Number.POSITIVE_INFINITY : value);
 
