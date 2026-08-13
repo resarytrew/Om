@@ -9,6 +9,7 @@ import {
   Engine,
   HemisphericLight,
   LinesMesh,
+  Matrix,
   Mesh,
   MeshBuilder,
   PBRMaterial,
@@ -31,6 +32,7 @@ import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
 import { installOhmGlbShells } from './GlbInstrumentShells';
 import { PhysicalCable, PhysicalCableSystem, type CableCollider } from './PhysicalCable';
+import { clampRotaryTravel, normalizeAngleDelta, rotaryTravelToValue } from './RotaryControl';
 import {
   AnalogMeterVisual,
   PowerSupplyVisual,
@@ -73,8 +75,11 @@ export class LabScene {
   private resizeObserver: ResizeObserver | null = null;
   private activeControl: 'source-voltage' | null = null;
   private controlPointerId: number | null = null;
-  private controlLastX = 0;
-  private controlLastY = 0;
+  private controlCenterX = 0;
+  private controlCenterY = 0;
+  private controlLastAngle = 0;
+  private controlTravel = 0;
+  private controlStartVoltage = 0;
 
   private source!: PowerSupplyVisual;
   private resistor!: ResistorModuleVisual;
@@ -156,6 +161,7 @@ export class LabScene {
     this.camera.inertia = 0.82;
     this.camera.panningSensibility = 95;
     this.camera.attachControl(this.canvas, true, true);
+    this.canvas.style.cursor = 'default';
 
     const pipeline = new DefaultRenderingPipeline('ohm-render-pipeline', true, this.scene, [this.camera]);
     pipeline.fxaaEnabled = true;
@@ -431,11 +437,15 @@ export class LabScene {
 
       if (pointerInfo.type === PointerEventTypes.POINTERDOWN && metadata?.instrumentControl === 'source-voltage') {
         const event = pointerInfo.event as PointerEvent;
+        const center = this.worldToClient(this.source.getVoltageKnobWorldPosition());
         this.activeControl = 'source-voltage';
         this.controlPointerId = event.pointerId;
-        this.controlLastX = event.clientX;
-        this.controlLastY = event.clientY;
-        this.source.setControlActive(true);
+        this.controlCenterX = center.x;
+        this.controlCenterY = center.y;
+        this.controlLastAngle = Math.atan2(event.clientY - center.y, event.clientX - center.x);
+        this.controlTravel = 0;
+        this.controlStartVoltage = this.currentSourceVoltage();
+        this.canvas.style.cursor = 'grabbing';
         this.camera.detachControl();
         this.canvas.setPointerCapture?.(event.pointerId);
         event.preventDefault();
@@ -445,12 +455,18 @@ export class LabScene {
       if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeControl === 'source-voltage') {
         const event = pointerInfo.event as PointerEvent;
         if (this.controlPointerId !== null && event.pointerId !== this.controlPointerId) return;
-        const dx = event.clientX - this.controlLastX;
-        const dy = event.clientY - this.controlLastY;
-        this.controlLastX = event.clientX;
-        this.controlLastY = event.clientY;
-        const current = this.currentSourceVoltage();
-        const next = current + dx * 0.035 - dy * 0.055;
+        const dx = event.clientX - this.controlCenterX;
+        const dy = event.clientY - this.controlCenterY;
+        if (Math.hypot(dx, dy) < 10) return;
+        const angle = Math.atan2(dy, dx);
+        const delta = normalizeAngleDelta(angle - this.controlLastAngle);
+        this.controlLastAngle = angle;
+        this.controlTravel = clampRotaryTravel(
+          this.controlStartVoltage,
+          this.controlTravel + delta,
+          12,
+        );
+        const next = rotaryTravelToValue(this.controlStartVoltage, this.controlTravel, 12);
         this.runtime.setVoltage(Math.round(next * 20) / 20);
         event.preventDefault();
         return;
@@ -510,7 +526,7 @@ export class LabScene {
       : null;
     this.hoveredTerminal = nextHovered;
 
-    if (metadata?.instrumentControl === 'source-voltage') this.canvas.style.cursor = 'ns-resize';
+    if (metadata?.instrumentControl === 'source-voltage') this.canvas.style.cursor = 'grab';
     else if (metadata?.instrumentControl === 'source-output') this.canvas.style.cursor = 'pointer';
     else if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
     else if (metadata?.connectionId) this.canvas.style.cursor = 'pointer';
@@ -546,6 +562,23 @@ export class LabScene {
     this.updatePreviewWire(from, pointerPoint, Boolean(snapped));
   }
 
+  private worldToClient(world: Vector3): { x: number; y: number } {
+    const renderWidth = this.engine.getRenderWidth();
+    const renderHeight = this.engine.getRenderHeight();
+    const viewport = this.camera.viewport.toGlobal(renderWidth, renderHeight);
+    const projected = Vector3.Project(
+      world,
+      Matrix.Identity(),
+      this.scene.getTransformMatrix(),
+      viewport,
+    );
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + (projected.x / renderWidth) * rect.width,
+      y: rect.top + (projected.y / renderHeight) * rect.height,
+    };
+  }
+
   private currentSourceVoltage(): number {
     const source = this.runtime.circuit.snapshot().components.find((component) => component.kind === 'voltage-source');
     return source?.kind === 'voltage-source' ? source.voltage : 0;
@@ -559,7 +592,7 @@ export class LabScene {
   private finishInstrumentControl(pointerId?: number): void {
     this.activeControl = null;
     this.controlPointerId = null;
-    this.source.setControlActive(false);
+    this.controlTravel = 0;
     if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) {
       this.canvas.releasePointerCapture?.(pointerId);
     }
