@@ -1,0 +1,40 @@
+name: Meter needle fix
+
+on:
+  push:
+    branches:
+      - agent/meter-needle-fix
+    paths:
+      - scripts/patch_meter_needle_fix.mjs
+      - .github/workflows/meter-needle-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/meter-needle-fix
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply meter needle patch
+        run: node scripts/patch_meter_needle_fix.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test -- --run
+      - name: Build
+        run: npm run build
+      - name: Commit production changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests
+          git commit -m "Ohm lab: fix analog meter needle range"
+          git push origin HEAD:agent/meter-needle-fix
