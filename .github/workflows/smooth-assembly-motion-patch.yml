@@ -20,7 +20,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply smooth assembly patch
-        run: node scripts/patch_smooth_assembly_motion.mjs
+        run: python scripts/patch_smooth_assembly_motion.py
       - name: Install dependencies
         run: npm ci
       - name: Test
