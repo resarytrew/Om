@@ -1,0 +1,33 @@
+name: Fix Ohm instrument textures
+
+on:
+  push:
+    branches:
+      - agent/ohm-glb-assets
+    paths:
+      - scripts/fix_ohm_instrument_textures.mjs
+      - .github/workflows/ohm-texture-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/ohm-glb-assets
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Fix texture rendering
+        run: node scripts/fix_ohm_instrument_textures.mjs
+      - name: Commit texture rendering fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/rendering/babylon/ProfessionalInstruments.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm GLB: render instrument textures through emissive channel"
+          git push
