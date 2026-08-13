@@ -1,0 +1,40 @@
+name: True rotary voltage knob
+
+on:
+  push:
+    branches:
+      - agent/true-rotary-voltage-knob
+    paths:
+      - scripts/patch_true_rotary_knob.mjs
+      - .github/workflows/true-rotary-knob-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/true-rotary-voltage-knob
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply true rotary knob patch
+        run: node scripts/patch_true_rotary_knob.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test -- --run
+      - name: Build
+        run: npm run build
+      - name: Commit production changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src tests
+          git commit -m "Ohm lab: make voltage knob a true rotary control"
+          git push origin HEAD:agent/true-rotary-voltage-knob
