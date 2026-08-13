@@ -273,3 +273,22 @@ td { color: #d0d7dc; }
   .nav-item { padding-inline: 8px; font-size: 13px; }
   .workspace { grid-template-columns: minmax(680px, 1.7fr) minmax(285px, .7fr); }
 }
+
+
+/* Smooth standard-assembly feedback */
+#preset.assembling {
+  position: relative;
+  overflow: hidden;
+  cursor: progress;
+  border-color: rgba(84, 217, 244, .72);
+  box-shadow: 0 0 0 1px rgba(84, 217, 244, .12), 0 0 22px rgba(84, 217, 244, .08);
+}
+#preset.assembling::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-115%);
+  background: linear-gradient(90deg, transparent, rgba(126, 233, 255, .16), transparent);
+  animation: assembly-scan 1.15s ease-in-out infinite;
+}
+@keyframes assembly-scan { to { transform: translateX(115%); } }
