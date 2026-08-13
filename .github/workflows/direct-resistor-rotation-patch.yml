@@ -1,0 +1,37 @@
+name: Direct resistor rotation integration
+
+on:
+  push:
+    branches:
+      - agent/direct-resistor-rotation
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/direct-resistor-rotation
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply direct resistor rotation patch
+        run: node scripts/patch_direct_resistor_rotation.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Commit production changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/rendering/babylon/ProfessionalInstruments.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm lab: rotate the resistor body directly"
+          git push
