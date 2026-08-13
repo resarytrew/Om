@@ -37,6 +37,20 @@ describe('Ohm circuit solver', () => {
     expect(runtime.getState().result.current).toBeCloseTo(12 / 6, 8);
   });
 
+  it('turns source output off without forgetting the voltage setpoint', () => {
+    const runtime = closeSeriesCircuit();
+    runtime.setVoltage(9);
+    expect(runtime.getState().result.current).toBeCloseTo(3, 8);
+
+    runtime.setSourceEnabled(false);
+    expect(runtime.getState().result.current).toBe(0);
+    expect(runtime.getState().result.sourceVoltage).toBe(9);
+
+    runtime.setSourceEnabled(true);
+    expect(runtime.getState().result.current).toBeCloseTo(3, 8);
+    expect(runtime.getState().result.sourceVoltage).toBe(9);
+  });
+
   it('detects a direct short circuit path', () => {
     const runtime = createOhmsLawRuntime();
     runtime.circuit.connect(ids.sourcePlus, ids.ammeterPlus);

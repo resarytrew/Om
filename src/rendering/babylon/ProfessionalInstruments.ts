@@ -239,7 +239,9 @@ function createPanelFrame(
 export class PowerSupplyVisual {
   private readonly display: DigitalDisplay;
   private readonly statusLed: Mesh;
+  private readonly powerSwitch: Mesh;
   private readonly knob: Mesh;
+  private readonly knobCap: Mesh;
   private readonly knobPointer: Mesh;
   private targetKnob = 0;
   private currentKnob = 0;
@@ -319,17 +321,19 @@ export class PowerSupplyVisual {
     this.knob.position = new Vector3(position.x + 0.77, 1.1, frontZ - 0.17);
     this.knob.rotation.x = Math.PI / 2;
     this.knob.material = theme.darkMetal;
-    this.knob.isPickable = false;
+    this.knob.isPickable = true;
+    this.knob.metadata = { instrumentControl: 'source-voltage' };
 
-    const knobCap = MeshBuilder.CreateCylinder(
+    this.knobCap = MeshBuilder.CreateCylinder(
       'source-knob-cap',
       { height: 0.305, diameter: 0.34, tessellation: 48 },
       scene,
     );
-    knobCap.position = this.knob.position.add(new Vector3(0, 0, -0.018));
-    knobCap.rotation.x = Math.PI / 2;
-    knobCap.material = theme.rubberBlack;
-    knobCap.isPickable = false;
+    this.knobCap.position = this.knob.position.add(new Vector3(0, 0, -0.018));
+    this.knobCap.rotation.x = Math.PI / 2;
+    this.knobCap.material = theme.rubberBlack;
+    this.knobCap.isPickable = true;
+    this.knobCap.metadata = { instrumentControl: 'source-voltage' };
 
     this.knobPointer = createBox(
       scene,
@@ -352,14 +356,16 @@ export class PowerSupplyVisual {
       30,
     );
 
-    const powerSwitch = createBox(
+    this.powerSwitch = createBox(
       scene,
       'source-power-switch',
       new Vector3(position.x + 1.08, 0.5, frontZ - 0.08),
       new Vector3(0.32, 0.23, 0.085),
       theme.rubberBlack,
     );
-    powerSwitch.rotation.z = -0.06;
+    this.powerSwitch.rotation.z = -0.08;
+    this.powerSwitch.isPickable = true;
+    this.powerSwitch.metadata = { instrumentControl: 'source-output' };
 
     this.statusLed = MeshBuilder.CreateSphere(
       'source-status-led',
@@ -439,6 +445,17 @@ export class PowerSupplyVisual {
     this.display.setValue(value);
     const ratio = Math.min(1, Math.max(0, value / 12));
     this.targetKnob = -0.82 + ratio * 1.64;
+  }
+
+  setOutputEnabled(enabled: boolean): void {
+    this.powerSwitch.rotation.z = enabled ? -0.08 : 0.12;
+    this.powerSwitch.scaling.y = enabled ? 1 : 0.92;
+  }
+
+  setControlActive(active: boolean): void {
+    const scale = active ? 1.06 : 1;
+    this.knob.scaling.setAll(scale);
+    this.knobCap.scaling.setAll(scale);
   }
 
   setActive(active: boolean, warning = false): void {

@@ -54,11 +54,13 @@ interface WireVisual {
 interface PickMetadata {
   readonly terminalId?: string;
   readonly connectionId?: string;
+  readonly instrumentControl?: 'source-voltage' | 'source-output';
 }
 
 export class LabScene {
   private readonly engine: Engine;
   private readonly scene: Scene;
+  private camera!: ArcRotateCamera;
   private readonly theme: InstrumentTheme;
   private readonly terminalMeshes = new Map<string, TerminalVisual>();
   private readonly connectionMeshes = new Map<string, WireVisual>();
@@ -69,6 +71,10 @@ export class LabScene {
   private selectedConnection: ConnectionId | null = null;
   private unsubscribe: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private activeControl: 'source-voltage' | null = null;
+  private controlPointerId: number | null = null;
+  private controlLastX = 0;
+  private controlLastY = 0;
 
   private source!: PowerSupplyVisual;
   private resistor!: ResistorModuleVisual;
@@ -111,12 +117,14 @@ export class LabScene {
     this.resizeObserver = new ResizeObserver(() => this.engine.resize());
     this.resizeObserver.observe(canvas);
     this.canvas.addEventListener('keydown', this.handleKeyDown);
+    this.canvas.addEventListener('wheel', this.handleControlWheel, { passive: false });
   }
 
   dispose(): void {
     this.unsubscribe?.();
     this.resizeObserver?.disconnect();
     this.canvas.removeEventListener('keydown', this.handleKeyDown);
+    this.canvas.removeEventListener('wheel', this.handleControlWheel);
     this.previewWire?.dispose();
     this.cablePhysics.dispose();
     this.scene.dispose();
@@ -124,7 +132,7 @@ export class LabScene {
   }
 
   private buildScene(): void {
-    const camera = new ArcRotateCamera(
+    this.camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2,
       1.16,
@@ -132,24 +140,24 @@ export class LabScene {
       new Vector3(0.05, 0.68, 0.48),
       this.scene,
     );
-    camera.fov = 0.66;
+    this.camera.fov = 0.66;
 
     // Interactive orbit camera for the laboratory bench. The limits keep the
     // learner above the table and in front of the studio backdrop, while still
     // allowing a wide inspection angle around every instrument.
-    camera.lowerRadiusLimit = 5.4;
-    camera.upperRadiusLimit = 16.5;
-    camera.lowerBetaLimit = 0.46;
-    camera.upperBetaLimit = 1.48;
-    camera.lowerAlphaLimit = -Math.PI + 0.16;
-    camera.upperAlphaLimit = -0.16;
-    camera.wheelPrecision = 34;
-    camera.pinchPrecision = 72;
-    camera.inertia = 0.82;
-    camera.panningSensibility = 95;
-    camera.attachControl(this.canvas, true, true);
+    this.camera.lowerRadiusLimit = 5.4;
+    this.camera.upperRadiusLimit = 16.5;
+    this.camera.lowerBetaLimit = 0.46;
+    this.camera.upperBetaLimit = 1.48;
+    this.camera.lowerAlphaLimit = -Math.PI + 0.16;
+    this.camera.upperAlphaLimit = -0.16;
+    this.camera.wheelPrecision = 34;
+    this.camera.pinchPrecision = 72;
+    this.camera.inertia = 0.82;
+    this.camera.panningSensibility = 95;
+    this.camera.attachControl(this.canvas, true, true);
 
-    const pipeline = new DefaultRenderingPipeline('ohm-render-pipeline', true, this.scene, [camera]);
+    const pipeline = new DefaultRenderingPipeline('ohm-render-pipeline', true, this.scene, [this.camera]);
     pipeline.fxaaEnabled = true;
     pipeline.samples = 2;
     pipeline.bloomEnabled = true;
@@ -421,6 +429,42 @@ export class LabScene {
     this.scene.onPointerObservable.add((pointerInfo) => {
       const metadata = (pointerInfo.pickInfo?.pickedMesh?.metadata ?? null) as PickMetadata | null;
 
+      if (pointerInfo.type === PointerEventTypes.POINTERDOWN && metadata?.instrumentControl === 'source-voltage') {
+        const event = pointerInfo.event as PointerEvent;
+        this.activeControl = 'source-voltage';
+        this.controlPointerId = event.pointerId;
+        this.controlLastX = event.clientX;
+        this.controlLastY = event.clientY;
+        this.source.setControlActive(true);
+        this.camera.detachControl();
+        this.canvas.setPointerCapture?.(event.pointerId);
+        event.preventDefault();
+        return;
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeControl === 'source-voltage') {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.controlPointerId !== null && event.pointerId !== this.controlPointerId) return;
+        const dx = event.clientX - this.controlLastX;
+        const dy = event.clientY - this.controlLastY;
+        this.controlLastX = event.clientX;
+        this.controlLastY = event.clientY;
+        const current = this.currentSourceVoltage();
+        const next = current + dx * 0.035 - dy * 0.055;
+        this.runtime.setVoltage(Math.round(next * 20) / 20);
+        event.preventDefault();
+        return;
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERUP && this.activeControl) {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.controlPointerId === null || event.pointerId === this.controlPointerId) {
+          this.finishInstrumentControl(event.pointerId);
+          event.preventDefault();
+        }
+        return;
+      }
+
       if (pointerInfo.type === PointerEventTypes.POINTERMOVE) {
         this.handlePointerMove(metadata);
         return;
@@ -430,6 +474,11 @@ export class LabScene {
       // This keeps terminal/wire selection independent from camera orbiting.
       if (pointerInfo.type !== PointerEventTypes.POINTERTAP) return;
       this.canvas.focus({ preventScroll: true });
+
+      if (metadata?.instrumentControl === 'source-output') {
+        this.runtime.setSourceEnabled(!this.currentSourceEnabled());
+        return;
+      }
 
       if (metadata?.terminalId) {
         this.selectedConnection = null;
@@ -461,7 +510,9 @@ export class LabScene {
       : null;
     this.hoveredTerminal = nextHovered;
 
-    if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
+    if (metadata?.instrumentControl === 'source-voltage') this.canvas.style.cursor = 'ns-resize';
+    else if (metadata?.instrumentControl === 'source-output') this.canvas.style.cursor = 'pointer';
+    else if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
     else if (metadata?.connectionId) this.canvas.style.cursor = 'pointer';
     else this.canvas.style.cursor = selectedTerminal ? 'crosshair' : 'default';
 
@@ -494,6 +545,35 @@ export class LabScene {
     if (!snapped) pointerPoint.y = Math.max(pointerPoint.y + 0.075, 0.075);
     this.updatePreviewWire(from, pointerPoint, Boolean(snapped));
   }
+
+  private currentSourceVoltage(): number {
+    const source = this.runtime.circuit.snapshot().components.find((component) => component.kind === 'voltage-source');
+    return source?.kind === 'voltage-source' ? source.voltage : 0;
+  }
+
+  private currentSourceEnabled(): boolean {
+    const source = this.runtime.circuit.snapshot().components.find((component) => component.kind === 'voltage-source');
+    return source?.kind === 'voltage-source' ? source.enabled : false;
+  }
+
+  private finishInstrumentControl(pointerId?: number): void {
+    this.activeControl = null;
+    this.controlPointerId = null;
+    this.source.setControlActive(false);
+    if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) {
+      this.canvas.releasePointerCapture?.(pointerId);
+    }
+    this.camera.attachControl(this.canvas, true, true);
+  }
+
+  private readonly handleControlWheel = (event: WheelEvent): void => {
+    const pick = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
+    const metadata = (pick?.pickedMesh?.metadata ?? null) as PickMetadata | null;
+    if (metadata?.instrumentControl !== 'source-voltage') return;
+    const direction = event.deltaY < 0 ? 1 : -1;
+    this.runtime.setVoltage(this.currentSourceVoltage() + direction * 0.1);
+    event.preventDefault();
+  };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
@@ -593,14 +673,16 @@ export class LabScene {
     const source = snapshot.components.find((component) => component.id === ids.source);
     const resistor = snapshot.components.find((component) => component.id === ids.resistor);
     const sourceVoltage = source?.kind === 'voltage-source' ? source.voltage : 0;
+    const sourceEnabled = source?.kind === 'voltage-source' ? source.enabled : false;
     const resistance = resistor?.kind === 'resistor' ? resistor.resistance : 0;
     const ammeterMeasurement = state.result.measurements[ids.ammeter];
     const voltmeterMeasurement = state.result.measurements[ids.voltmeter];
     const resistorMeasurement = state.result.measurements[ids.resistor];
 
     this.source.setVoltage(sourceVoltage);
+    this.source.setOutputEnabled(sourceEnabled);
     this.source.setActive(
-      state.result.status === 'closed',
+      sourceEnabled && state.result.status === 'closed',
       state.result.status === 'short-circuit' || Boolean(ammeterMeasurement?.overload),
     );
     this.resistor.setResistance(resistance);
