@@ -1,0 +1,59 @@
+name: Ohm GLB visual preview
+
+on:
+  push:
+    branches:
+      - agent/ohm-glb-assets
+    paths:
+      - .github/workflows/ohm-glb-preview.yml
+
+permissions:
+  contents: write
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/ohm-glb-assets
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install app and preview browser
+        run: |
+          npm install
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Build application
+        run: npm run build
+      - name: Start preview server
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/physics-lab-vite.log 2>&1 &
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4173/Om/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/physics-lab-vite.log
+          exit 1
+      - name: Capture Ohm laboratory canvas
+        run: |
+          mkdir -p artifacts
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch({ headless: true });
+          const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+          await page.goto('http://127.0.0.1:4173/Om/', { waitUntil: 'networkidle' });
+          await page.waitForTimeout(4500);
+          const canvas = page.locator('canvas').first();
+          await canvas.screenshot({ path: 'artifacts/ohm-glb-preview.png' });
+          await browser.close();
+          NODE
+      - name: Commit preview screenshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/ohm-glb-preview.png
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm GLB: capture branch visual preview"
+          git push
