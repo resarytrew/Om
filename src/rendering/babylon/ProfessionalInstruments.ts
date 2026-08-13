@@ -12,6 +12,7 @@ import {
 import type { TerminalId } from '../../core/types';
 import type { InstrumentTheme } from './InstrumentTheme';
 import { clampMeterAngle, meterNeedleAngle, METER_ZERO_ANGLE } from './MeterScale';
+import { valueToKnobRotation } from './RotaryControl';
 
 export type TerminalPolarity = 'positive' | 'negative' | 'neutral';
 export type TerminalRegistrar = (
@@ -240,6 +241,7 @@ export class PowerSupplyVisual {
   private readonly display: DigitalDisplay;
   private readonly statusLed: Mesh;
   private readonly powerSwitch: Mesh;
+  private readonly knobPivot: TransformNode;
   private readonly knob: Mesh;
   private readonly knobCap: Mesh;
   private readonly knobPointer: Mesh;
@@ -313,13 +315,18 @@ export class PowerSupplyVisual {
     knobRing.material = theme.meterBezel;
     knobRing.isPickable = false;
 
+    const knobCenter = new Vector3(position.x + 0.77, 1.1, frontZ - 0.17);
+    this.knobPivot = new TransformNode('source-voltage-knob-pivot', scene);
+    this.knobPivot.position = knobCenter;
+
     this.knob = MeshBuilder.CreateCylinder(
       'source-voltage-knob',
       { height: 0.29, diameter: 0.56, tessellation: 48 },
       scene,
     );
-    this.knob.position = new Vector3(position.x + 0.77, 1.1, frontZ - 0.17);
+    this.knob.position = Vector3.Zero();
     this.knob.rotation.x = Math.PI / 2;
+    this.knob.parent = this.knobPivot;
     this.knob.material = theme.darkMetal;
     this.knob.isPickable = true;
     this.knob.metadata = { instrumentControl: 'source-voltage' };
@@ -329,8 +336,9 @@ export class PowerSupplyVisual {
       { height: 0.305, diameter: 0.34, tessellation: 48 },
       scene,
     );
-    this.knobCap.position = this.knob.position.add(new Vector3(0, 0, -0.018));
+    this.knobCap.position = new Vector3(0, 0, -0.018);
     this.knobCap.rotation.x = Math.PI / 2;
+    this.knobCap.parent = this.knobPivot;
     this.knobCap.material = theme.rubberBlack;
     this.knobCap.isPickable = true;
     this.knobCap.metadata = { instrumentControl: 'source-voltage' };
@@ -338,10 +346,11 @@ export class PowerSupplyVisual {
     this.knobPointer = createBox(
       scene,
       'source-knob-index',
-      new Vector3(position.x + 0.77, 1.34, frontZ - 0.335),
+      new Vector3(0, 0.245, -0.165),
       new Vector3(0.035, 0.14, 0.022),
       theme.metal,
     );
+    this.knobPointer.parent = this.knobPivot;
 
     createTextPlate(
       scene,
@@ -443,8 +452,7 @@ export class PowerSupplyVisual {
 
   setVoltage(value: number): void {
     this.display.setValue(value);
-    const ratio = Math.min(1, Math.max(0, value / 12));
-    this.targetKnob = -0.82 + ratio * 1.64;
+    this.targetKnob = valueToKnobRotation(value, 12);
   }
 
   setOutputEnabled(enabled: boolean): void {
@@ -452,10 +460,8 @@ export class PowerSupplyVisual {
     this.powerSwitch.scaling.y = enabled ? 1 : 0.92;
   }
 
-  setControlActive(active: boolean): void {
-    const scale = active ? 1.06 : 1;
-    this.knob.scaling.setAll(scale);
-    this.knobCap.scaling.setAll(scale);
+  getVoltageKnobWorldPosition(): Vector3 {
+    return this.knobPivot.getAbsolutePosition().clone();
   }
 
   setActive(active: boolean, warning = false): void {
@@ -476,8 +482,7 @@ export class PowerSupplyVisual {
   tick(dt: number): void {
     const factor = 1 - Math.exp(-dt * 8);
     this.currentKnob += (this.targetKnob - this.currentKnob) * factor;
-    this.knob.rotation.z = this.currentKnob;
-    this.knobPointer.rotation.z = this.currentKnob;
+    this.knobPivot.rotation.z = this.currentKnob;
   }
 }
 
