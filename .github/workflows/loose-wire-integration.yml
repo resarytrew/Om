@@ -1,0 +1,37 @@
+name: Loose wire bench integration
+
+on:
+  push:
+    branches:
+      - agent/loose-wire-bench
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/loose-wire-bench
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply loose wire patch
+        run: python scripts/patch_loose_wire.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Test TypeScript
+        run: npm test -- --run
+      - name: Build
+        run: npm run build
+      - name: Commit production changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/rendering/babylon/LabScene.ts src/ui/renderApp.ts src/styles.css
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm lab: add physical loose wires to equipment dock"
+          git push origin HEAD:agent/loose-wire-bench
