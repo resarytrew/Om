@@ -100,7 +100,7 @@ export function renderApp(
             <canvas id="lab-canvas" aria-label="Трёхмерная лабораторная установка"></canvas>
             <div class="equipment-dock" id="equipment-dock" aria-label="Оборудование лаборатории">
               <div class="equipment-dock-head">
-                <div><span>LAB GEAR</span><small>перетащите прибор на стол</small></div>
+                <div><span>LAB GEAR</span><small>перетащите прибор или провод на стол</small></div>
                 <button id="equipment-dock-toggle" class="equipment-dock-toggle" type="button" aria-expanded="true" title="Свернуть оборудование">⌃</button>
               </div>
               <div class="equipment-grid">
@@ -108,10 +108,11 @@ export function renderApp(
                 <button class="equipment-item" draggable="true" data-equipment="resistor" aria-label="Регулируемый резистор 0.5–20 Ом"><span class="equipment-icon">Ω</span><span class="equipment-copy"><b>Резистор</b><small>0.5–20 Ω</small></span><span class="equipment-state">READY</span></button>
                 <button class="equipment-item" draggable="true" data-equipment="ammeter" aria-label="Амперметр 0–5 А"><span class="equipment-icon">A</span><span class="equipment-copy"><b>Амперметр</b><small>0–5 A</small></span><span class="equipment-state">READY</span></button>
                 <button class="equipment-item" draggable="true" data-equipment="voltmeter" aria-label="Вольтметр 0–12 В"><span class="equipment-icon">V</span><span class="equipment-copy"><b>Вольтметр</b><small>0–12 V</small></span><span class="equipment-state">READY</span></button>
+                <button class="equipment-item equipment-wire" draggable="true" data-equipment="wire" aria-label="Лабораторный провод с banana-штекерами"><span class="equipment-icon">⌁</span><span class="equipment-copy"><b>Провод</b><small>banana lead · физика</small></span><span class="equipment-state">∞ AVAILABLE</span></button>
               </div>
               <div class="equipment-dock-foot"><span>ЛКМ: двигать</span><span>ПКМ / Shift: крутить</span><button id="clear-bench" class="equipment-clear" type="button">Очистить</button></div>
             </div>
-            <div class="scene-hint" id="scene-hint">Из дока → на стол · ЛКМ за корпус: переставить · ПКМ или Shift + drag: повернуть · Drag по фону: камера · Клемма: провод.</div>
+            <div class="scene-hint" id="scene-hint">Из дока → на стол · Прибор: ЛКМ двигать, ПКМ/Shift крутить · Провод: тяните за штекер к клемме · Drag по фону: камера.</div>
           </div>
         </section>
 
@@ -416,10 +417,17 @@ export function renderApp(
     const event = rawEvent as CustomEvent<{ placed?: string[] }>;
     const placed = new Set(event.detail?.placed ?? []);
     for (const item of root.querySelectorAll<HTMLButtonElement>('[data-equipment]')) {
-      const active = placed.has(item.dataset.equipment ?? '');
+      const equipment = item.dataset.equipment ?? '';
+      const equipmentState = item.querySelector<HTMLElement>('.equipment-state');
+      if (equipment === 'wire') {
+        item.classList.remove('placed');
+        item.setAttribute('aria-pressed', 'false');
+        if (equipmentState) equipmentState.textContent = '∞ AVAILABLE';
+        continue;
+      }
+      const active = placed.has(equipment);
       item.classList.toggle('placed', active);
       item.setAttribute('aria-pressed', String(active));
-      const equipmentState = item.querySelector<HTMLElement>('.equipment-state');
       if (equipmentState) equipmentState.textContent = active ? 'ON BENCH' : 'READY';
     }
   }) as EventListener);

@@ -292,3 +292,21 @@ td { color: #d0d7dc; }
   animation: assembly-scan 1.15s ease-in-out infinite;
 }
 @keyframes assembly-scan { to { transform: translateX(115%); } }
+
+
+/* Loose laboratory leads are inventory, not a one-per-bench instrument. */
+.equipment-item.equipment-wire {
+  grid-column: 1 / -1;
+  min-height: 62px;
+  grid-template-columns: 34px 1fr auto;
+  grid-template-rows: 1fr;
+  align-items: center;
+  column-gap: 9px;
+}
+.equipment-item.equipment-wire .equipment-copy { align-self: center; }
+.equipment-item.equipment-wire .equipment-state {
+  justify-self: end;
+  align-self: center;
+  color: #71cfe3;
+  font-size: 7.5px;
+}

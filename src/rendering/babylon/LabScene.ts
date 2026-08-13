@@ -60,9 +60,26 @@ interface WireVisual {
   revealProgress: number;
 }
 
+type LooseWireEnd = 'start' | 'end';
+
+interface LooseWireVisual {
+  readonly id: string;
+  readonly cable: PhysicalCable;
+  readonly material: PBRMaterial;
+  readonly baseColor: Color3;
+  readonly plugStart: readonly Mesh[];
+  readonly plugEnd: readonly Mesh[];
+  start: Vector3;
+  end: Vector3;
+  startTerminal: TerminalId | null;
+  endTerminal: TerminalId | null;
+}
+
 interface PickMetadata {
   readonly terminalId?: string;
   readonly connectionId?: string;
+  readonly looseWireId?: string;
+  readonly looseWireEnd?: LooseWireEnd;
   readonly instrumentControl?: 'source-voltage' | 'source-output' | 'resistor-resistance';
   readonly instrumentId?: InstrumentId;
 }
@@ -74,6 +91,12 @@ export class LabScene {
   private readonly theme: InstrumentTheme;
   private readonly terminalMeshes = new Map<string, TerminalVisual>();
   private readonly connectionMeshes = new Map<string, WireVisual>();
+  private readonly looseWires = new Map<string, LooseWireVisual>();
+  private readonly connectionColorOverrides = new Map<ConnectionId, Color3>();
+  private looseWireCounter = 0;
+  private activeLooseWire: { id: string; end: LooseWireEnd } | null = null;
+  private looseWirePointerId: number | null = null;
+  private looseWireCandidateTerminal: TerminalId | null = null;
   private cablePhysics!: PhysicalCableSystem;
   private bench: Mesh | null = null;
   private previewWire: LinesMesh | null = null;
@@ -142,6 +165,7 @@ export class LabScene {
       this.updateInstrumentMotion(dt);
       this.updateWireReveals(dt);
       this.syncMovingConnections();
+      this.syncLooseWires();
       this.cablePhysics.step(dt);
       this.scene.render();
     });
@@ -167,6 +191,11 @@ export class LabScene {
     this.canvas.removeEventListener('lab:set-interaction-lock', this.handleInteractionLock as EventListener);
     this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
     this.previewWire?.dispose();
+    for (const loose of this.looseWires.values()) {
+      for (const mesh of [...loose.plugStart, ...loose.plugEnd]) mesh.dispose();
+      loose.material.dispose();
+    }
+    this.looseWires.clear();
     this.cablePhysics.dispose();
     this.scene.dispose();
     this.engine.dispose();
@@ -504,6 +533,22 @@ export class LabScene {
       if (this.interactionLocked) return;
       const metadata = (pointerInfo.pickInfo?.pickedMesh?.metadata ?? null) as PickMetadata | null;
 
+      if (pointerInfo.type === PointerEventTypes.POINTERDOWN && metadata?.looseWireId && metadata.looseWireEnd) {
+        const event = pointerInfo.event as PointerEvent;
+        const loose = this.looseWires.get(metadata.looseWireId);
+        if (!loose) return;
+        this.activeLooseWire = { id: metadata.looseWireId, end: metadata.looseWireEnd };
+        this.looseWirePointerId = event.pointerId;
+        this.looseWireCandidateTerminal = null;
+        if (metadata.looseWireEnd === 'start') loose.startTerminal = null;
+        else loose.endTerminal = null;
+        this.camera.detachControl();
+        this.canvas.setPointerCapture?.(event.pointerId);
+        this.canvas.style.cursor = 'grabbing';
+        event.preventDefault();
+        return;
+      }
+
       if (pointerInfo.type === PointerEventTypes.POINTERDOWN && (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance')) {
         const event = pointerInfo.event as PointerEvent;
         const resistorControl = metadata.instrumentControl === 'resistor-resistance';
@@ -561,6 +606,23 @@ export class LabScene {
           event.preventDefault();
           return;
         }
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeLooseWire) {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.looseWirePointerId !== null && event.pointerId !== this.looseWirePointerId) return;
+        this.moveLooseWireEnd(event.clientX, event.clientY);
+        event.preventDefault();
+        return;
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERUP && this.activeLooseWire) {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.looseWirePointerId === null || event.pointerId === this.looseWirePointerId) {
+          this.finishLooseWireDrag(event.clientX, event.clientY, event.pointerId);
+          event.preventDefault();
+        }
+        return;
       }
 
       if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeInstrumentRotate) {
@@ -690,7 +752,8 @@ export class LabScene {
       : null;
     this.hoveredTerminal = nextHovered;
 
-    if (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance') this.canvas.style.cursor = 'grab';
+    if (metadata?.looseWireId && metadata.looseWireEnd) this.canvas.style.cursor = 'grab';
+    else if (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance') this.canvas.style.cursor = 'grab';
     else if (metadata?.instrumentId) this.canvas.style.cursor = 'move';
     else if (metadata?.instrumentControl === 'source-output') this.canvas.style.cursor = 'pointer';
     else if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
@@ -752,6 +815,160 @@ export class LabScene {
     return this.scene.pick(x, y, (mesh) => mesh === this.bench)?.pickedPoint?.clone() ?? null;
   }
 
+  private pickTerminalAtClient(clientX: number, clientY: number): TerminalId | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * (this.engine.getRenderWidth() / Math.max(1, rect.width));
+    const y = (clientY - rect.top) * (this.engine.getRenderHeight() / Math.max(1, rect.height));
+    const pick = this.scene.pick(x, y, (mesh) => Boolean((mesh.metadata as PickMetadata | null)?.terminalId));
+    const id = (pick?.pickedMesh?.metadata as PickMetadata | null)?.terminalId;
+    return id ? terminalId(id) : null;
+  }
+
+  private clampLooseWirePoint(point: Vector3): Vector3 {
+    return new Vector3(
+      Math.min(4.55, Math.max(-4.55, point.x)),
+      Math.max(0.13, point.y),
+      Math.min(2.42, Math.max(-1.48, point.z)),
+    );
+  }
+
+  private placeLooseWire(point: Vector3 | null): void {
+    const index = ++this.looseWireCounter;
+    const id = `loose-wire-${index}`;
+    const center = this.clampLooseWirePoint(point?.clone() ?? new Vector3(-0.2 + (index % 3) * 0.3, 0.14, -1.02));
+    center.y = 0.14;
+    const start = this.clampLooseWirePoint(center.add(new Vector3(-0.95, 0, 0.05)));
+    const end = this.clampLooseWirePoint(center.add(new Vector3(0.95, 0, 0.18)));
+    const red = index % 2 === 1;
+    const baseColor = red ? new Color3(0.54, 0.018, 0.03) : new Color3(0.012, 0.015, 0.018);
+    const material = new PBRMaterial(`loose-wire-material:${id}`, this.scene);
+    material.albedoColor = baseColor;
+    material.metallic = 0;
+    material.roughness = 0.94;
+    material.environmentIntensity = 0.32;
+
+    const cable = new PhysicalCable(this.scene, id, start, end, material, {
+      radius: 0.046,
+      particleCount: 30,
+      laneOffset: index % 2 === 0 ? 0.08 : -0.08,
+      leadOut: 0.18,
+      floorY: 0.045,
+      frontClearance: 0.38,
+    });
+    cable.mesh.isPickable = false;
+    this.cablePhysics.add(cable);
+
+    const plugStart = this.createBananaPlug(`loose-start:${id}`, start, material, { looseWireId: id, looseWireEnd: 'start' });
+    const plugEnd = this.createBananaPlug(`loose-end:${id}`, end, material, { looseWireId: id, looseWireEnd: 'end' });
+    this.looseWires.set(id, {
+      id,
+      cable,
+      material,
+      baseColor,
+      plugStart,
+      plugEnd,
+      start,
+      end,
+      startTerminal: null,
+      endTerminal: null,
+    });
+  }
+
+  private moveLooseWireEnd(clientX: number, clientY: number): void {
+    const active = this.activeLooseWire;
+    if (!active) return;
+    const loose = this.looseWires.get(active.id);
+    if (!loose) return;
+    const terminal = this.pickTerminalAtClient(clientX, clientY);
+    this.looseWireCandidateTerminal = terminal;
+    let target: Vector3 | null = null;
+    if (terminal) target = this.terminalMeshes.get(terminal)?.mesh.getAbsolutePosition().clone() ?? null;
+    if (!target) {
+      const bench = this.pickBenchAtClient(clientX, clientY);
+      if (bench) {
+        bench.y = 0.14;
+        target = this.clampLooseWirePoint(bench);
+      }
+    }
+    if (!target) return;
+    if (active.end === 'start') loose.start = target;
+    else loose.end = target;
+    loose.cable.updateAnchors(loose.start, loose.end);
+    this.positionBananaPlug(active.end === 'start' ? loose.plugStart : loose.plugEnd, target);
+    if (terminal) this.refreshTerminals(terminal, null);
+    else this.refreshTerminals(this.runtime.getState().selectedTerminal, null);
+  }
+
+  private finishLooseWireDrag(clientX: number, clientY: number, pointerId?: number): void {
+    const active = this.activeLooseWire;
+    if (active) {
+      const loose = this.looseWires.get(active.id);
+      const terminal = this.pickTerminalAtClient(clientX, clientY) ?? this.looseWireCandidateTerminal;
+      if (loose && terminal) {
+        if (active.end === 'start') loose.startTerminal = terminal;
+        else loose.endTerminal = terminal;
+      }
+      if (loose) this.tryCompleteLooseWire(loose, active.end);
+    }
+    this.activeLooseWire = null;
+    this.looseWirePointerId = null;
+    this.looseWireCandidateTerminal = null;
+    if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) this.canvas.releasePointerCapture?.(pointerId);
+    if (!this.interactionLocked) this.camera.attachControl(this.canvas, true, true);
+    this.canvas.style.cursor = 'default';
+    this.refreshTerminals(this.runtime.getState().selectedTerminal, this.hoveredTerminal);
+  }
+
+  private tryCompleteLooseWire(loose: LooseWireVisual, movedEnd: LooseWireEnd): void {
+    if (!loose.startTerminal || !loose.endTerminal) return;
+    if (loose.startTerminal === loose.endTerminal) {
+      if (movedEnd === 'start') loose.startTerminal = null;
+      else loose.endTerminal = null;
+      return;
+    }
+    const duplicate = this.runtime.circuit.snapshot().connections.find((connection) =>
+      (connection.from === loose.startTerminal && connection.to === loose.endTerminal)
+      || (connection.from === loose.endTerminal && connection.to === loose.startTerminal));
+    if (duplicate) {
+      if (movedEnd === 'start') loose.startTerminal = null;
+      else loose.endTerminal = null;
+      return;
+    }
+    const connection = this.runtime.circuit.connect(loose.startTerminal, loose.endTerminal);
+    this.connectionColorOverrides.set(connection.id, loose.baseColor.clone());
+    this.runtime.recalculate();
+    this.removeLooseWire(loose.id);
+  }
+
+  private syncLooseWires(): void {
+    for (const loose of this.looseWires.values()) {
+      if (loose.startTerminal) {
+        const point = this.terminalMeshes.get(loose.startTerminal)?.mesh.getAbsolutePosition();
+        if (point) loose.start = point.clone();
+      }
+      if (loose.endTerminal) {
+        const point = this.terminalMeshes.get(loose.endTerminal)?.mesh.getAbsolutePosition();
+        if (point) loose.end = point.clone();
+      }
+      loose.cable.updateAnchors(loose.start, loose.end);
+      this.positionBananaPlug(loose.plugStart, loose.start);
+      this.positionBananaPlug(loose.plugEnd, loose.end);
+    }
+  }
+
+  private removeLooseWire(id: string): void {
+    const loose = this.looseWires.get(id);
+    if (!loose) return;
+    this.cablePhysics.remove(loose.cable);
+    for (const mesh of [...loose.plugStart, ...loose.plugEnd]) mesh.dispose();
+    loose.material.dispose();
+    this.looseWires.delete(id);
+  }
+
+  private clearLooseWires(): void {
+    for (const id of [...this.looseWires.keys()]) this.removeLooseWire(id);
+  }
+
   private moveInstrument(id: InstrumentId, requested: Vector3): void {
     const root = this.instrumentRoots.get(id);
     if (!root) return;
@@ -793,11 +1010,16 @@ export class LabScene {
 
   private readonly handlePlaceInstrumentEvent = (rawEvent: Event): void => {
     const event = rawEvent as CustomEvent<{ instrument?: string; clientX?: number; clientY?: number; animate?: boolean }>;
-    const instrument = event.detail?.instrument as InstrumentId | undefined;
-    if (!instrument || !this.instrumentRoots.has(instrument)) return;
+    const equipment = event.detail?.instrument;
     const point = typeof event.detail.clientX === 'number' && typeof event.detail.clientY === 'number'
       ? this.pickBenchAtClient(event.detail.clientX, event.detail.clientY)
       : null;
+    if (equipment === 'wire') {
+      this.placeLooseWire(point);
+      return;
+    }
+    const instrument = equipment as InstrumentId | undefined;
+    if (!instrument || !this.instrumentRoots.has(instrument)) return;
     if (point) this.moveInstrument(instrument, point);
     else this.placeAtStandard(instrument, Boolean(event.detail?.animate));
   };
@@ -817,6 +1039,7 @@ export class LabScene {
       this.instrumentRotationTargets.set(id, 0);
     }
     this.instrumentEntrances.clear();
+    this.clearLooseWires();
     this.placedInstruments.clear();
     this.refreshCableColliders();
     this.clearPreviewWire();
@@ -1130,6 +1353,7 @@ export class LabScene {
         for (const mesh of visual.plugs) mesh.dispose();
         visual.material.dispose();
         this.connectionMeshes.delete(id);
+        this.connectionColorOverrides.delete(connectionId(id));
       }
     }
 
@@ -1146,9 +1370,9 @@ export class LabScene {
       const fromTerminal = this.runtime.circuit.getTerminal(connection.from);
       const toTerminal = this.runtime.circuit.getTerminal(connection.to);
       const red = fromTerminal.polarity === 'positive' || toTerminal.polarity === 'positive';
-      const baseColor = red
+      const baseColor = this.connectionColorOverrides.get(connection.id)?.clone() ?? (red
         ? new Color3(0.5, 0.012, 0.022)
-        : new Color3(0.012, 0.015, 0.018);
+        : new Color3(0.012, 0.015, 0.018));
       const material = new PBRMaterial(`wire-material:${connection.id}`, this.scene);
       material.albedoColor = baseColor;
       material.metallic = 0.0;
@@ -1176,13 +1400,13 @@ export class LabScene {
         `plug-from:${connection.id}`,
         from,
         material,
-        connection.id,
+        { connectionId: connection.id },
       );
       const plugTo = this.createBananaPlug(
         `plug-to:${connection.id}`,
         to,
         material,
-        connection.id,
+        { connectionId: connection.id },
       );
 
       cable.mesh.visibility = 0.02;
@@ -1228,7 +1452,7 @@ export class LabScene {
     name: string,
     terminalPosition: Vector3,
     material: PBRMaterial,
-    id: ConnectionId,
+    metadata: PickMetadata,
   ): Mesh[] {
     const sleeve = MeshBuilder.CreateCylinder(
       `${name}-sleeve`,
@@ -1239,7 +1463,7 @@ export class LabScene {
     sleeve.rotation.x = Math.PI / 2;
     sleeve.material = material;
     sleeve.isPickable = true;
-    sleeve.metadata = { connectionId: id } satisfies PickMetadata;
+    sleeve.metadata = metadata;
 
     const collar = MeshBuilder.CreateCylinder(
       `${name}-collar`,
@@ -1260,7 +1484,7 @@ export class LabScene {
     strainRelief.rotation.x = Math.PI / 2;
     strainRelief.material = material;
     strainRelief.isPickable = true;
-    strainRelief.metadata = { connectionId: id } satisfies PickMetadata;
+    strainRelief.metadata = metadata;
 
     return [sleeve, collar, strainRelief];
   }
