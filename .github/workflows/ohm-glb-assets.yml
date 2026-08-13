@@ -1,0 +1,40 @@
+name: Generate Ohm GLB assets
+
+on:
+  push:
+    branches:
+      - agent/ohm-glb-assets
+    paths:
+      - scripts/generate_ohm_glb.py
+      - .github/workflows/ohm-glb-assets.yml
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/ohm-glb-assets
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install asset tooling
+        run: python -m pip install "numpy>=2,<3" "trimesh>=4.11,<5"
+      - name: Generate GLB shells
+        run: python scripts/generate_ohm_glb.py
+      - name: Add Babylon glTF loader
+        run: npm install @babylonjs/loaders@9.18.1 --save
+      - name: Commit generated assets and dependency lock
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/models/ohm package.json package-lock.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm lab: add authored GLB instrument shells"
+          git push
