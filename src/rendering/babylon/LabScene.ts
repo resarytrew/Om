@@ -17,7 +17,6 @@ import {
   PointerEventTypes,
   Scene,
   ShadowGenerator,
-  StandardMaterial,
   TransformNode,
   Vector3,
 } from '@babylonjs/core';
@@ -31,6 +30,7 @@ import {
 } from '../../core/types';
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
+import { installOhmVisualPolish } from './InstrumentVisualPolish';
 import { installOhmGlbShells } from './GlbInstrumentShells';
 import { clampInstrumentAnchor, instrumentFromNodeName, normalizeInstrumentRotation, smoothInstrumentRotation, STANDARD_INSTRUMENT_ANCHORS, type InstrumentId } from './InstrumentPlacement';
 import { PhysicalCable, PhysicalCableSystem, type CableCollider } from './PhysicalCable';
@@ -44,7 +44,7 @@ import {
 
 interface TerminalVisual {
   readonly mesh: Mesh;
-  readonly material: StandardMaterial;
+  readonly material: PBRMaterial;
   readonly ring: Mesh;
 }
 
@@ -237,6 +237,9 @@ export class LabScene {
     pipeline.bloomWeight = 0.07;
     pipeline.bloomKernel = 48;
     pipeline.bloomScale = 0.5;
+    pipeline.sharpenEnabled = true;
+    pipeline.sharpen.edgeAmount = 0.16;
+    pipeline.sharpen.colorAmount = 0.88;
 
     const hemi = new HemisphericLight(
       'ambient-lab-light',
@@ -436,6 +439,7 @@ export class LabScene {
       registerTerminal,
     );
 
+    installOhmVisualPolish(this.scene, this.theme);
     this.setupInstrumentRoots();
 
     // Collision boxes are rebuilt from the placed instrument roots so cables
@@ -551,17 +555,27 @@ export class LabScene {
     cap.position = position.add(new Vector3(0, 0, -0.09));
     cap.rotation.x = Math.PI / 2;
 
-    const baseColor = polarity === 'positive'
-      ? new Color3(0.76, 0.028, 0.04)
+    const material = (polarity === 'positive'
+      ? this.theme.terminalRed
       : polarity === 'negative'
-        ? new Color3(0.028, 0.032, 0.036)
-        : new Color3(0.31, 0.34, 0.36);
-    const material = new StandardMaterial(`terminal-material:${id}`, this.scene);
-    material.diffuseColor = baseColor;
-    material.specularColor = new Color3(0.55, 0.55, 0.55);
+        ? this.theme.terminalBlack
+        : this.theme.terminalNeutral).clone(`terminal-material:${id}`) as PBRMaterial;
+    material.environmentIntensity = 1.0;
     cap.material = material;
     cap.isPickable = true;
     cap.metadata = { terminalId: id } satisfies PickMetadata;
+
+    for (const offset of [-0.075, -0.145]) {
+      const grip = MeshBuilder.CreateTorus(
+        `terminal-grip:${id}:${offset}`,
+        { diameter: 0.268, thickness: 0.018, tessellation: 40 },
+        this.scene,
+      );
+      grip.position = position.add(new Vector3(0, 0, offset));
+      grip.rotation.x = Math.PI / 2;
+      grip.material = material;
+      grip.isPickable = false;
+    }
 
     const contact = MeshBuilder.CreateCylinder(
       `terminal-contact:${id}`,

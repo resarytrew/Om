@@ -89,7 +89,7 @@ class DigitalDisplay {
     );
     glass.position = spec.position.add(new Vector3(0, 0, -0.025));
     glass.rotation.y = 0;
-    glass.material = theme.glass;
+    glass.material = theme.displayGlass;
     glass.isPickable = false;
 
     const reflection = createBox(
@@ -112,17 +112,23 @@ class DigitalDisplay {
       : `OVER ${this.spec.unit}`;
     const context = this.texture.getContext();
     context.clearRect(0, 0, 640, 220);
-    context.fillStyle = '#03090b';
+    context.fillStyle = '#02080b';
     context.fillRect(0, 0, 640, 220);
+    context.fillStyle = '#0b2229';
+    context.fillRect(18, 52, 604, 2);
+    context.fillRect(18, 184, 604, 1);
+    this.texture.drawText('CV', 26, 37, '600 27px ui-monospace, monospace', '#42c9df', null, true);
+    this.texture.drawText('OUTPUT', 470, 37, '600 24px ui-monospace, monospace', '#337f8d', null, true);
     this.texture.drawText(
       text,
       null,
-      146,
+      151,
       `600 ${this.spec.fontSize ?? 92}px ui-monospace, SFMono-Regular, Menlo, monospace`,
       this.spec.textColor ?? '#73e7ff',
-      '#03090b',
+      '#02080b',
       true,
     );
+    this.texture.drawText('REMOTE  OFF', 28, 207, '500 20px ui-monospace, monospace', '#285a63', null, true);
   }
 }
 
@@ -714,6 +720,24 @@ export class AnalogMeterVisual {
     needle.setParent(this.needlePivot);
     needle.position = new Vector3(0, 0.31, 0);
 
+    const counterweight = createBox(
+      scene,
+      `${spec.id}-needle-counterweight`,
+      new Vector3(0, -0.105, 0.002),
+      new Vector3(0.075, 0.21, 0.032),
+      theme.darkMetal,
+    );
+    counterweight.setParent(this.needlePivot);
+
+    const needleTip = createBox(
+      scene,
+      `${spec.id}-needle-tip`,
+      new Vector3(0, 0.645, -0.002),
+      new Vector3(0.024, 0.085, 0.021),
+      theme.terminalRed,
+    );
+    needleTip.setParent(this.needlePivot);
+
     const hub = MeshBuilder.CreateCylinder(
       `${spec.id}-needle-hub`,
       { height: 0.075, diameter: 0.16, tessellation: 32 },
@@ -850,6 +874,18 @@ export class AnalogMeterVisual {
     ctx.arc(centerX, centerY, outerRadius, start, end, false);
     ctx.stroke();
 
+    ctx.strokeStyle = '#aeb1aa';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, outerRadius - 34, start, end, false);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#a51d24';
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, outerRadius - 3, start + (end - start) * 0.88, end, false);
+    ctx.stroke();
+
     const tickCount = 40;
     for (let index = 0; index <= tickCount; index += 1) {
       const ratio = index / tickCount;
@@ -889,6 +925,9 @@ export class AnalogMeterVisual {
     ctx.fillStyle = '#51595d';
     ctx.fillText('DC', centerX - 96, 374);
     ctx.fillText('CLASS 1.5', centerX + 74, 374);
+    ctx.font = '600 24px Arial, sans-serif';
+    ctx.fillStyle = '#737975';
+    ctx.fillText('MOVING COIL • LAB', centerX, 430);
 
     ctx.strokeStyle = '#9e151e';
     ctx.lineWidth = 5;
