@@ -28,6 +28,7 @@ import {
 } from '../../core/types';
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
+import { installOhmGlbShells } from './GlbInstrumentShells';
 import {
   AnalogMeterVisual,
   PowerSupplyVisual,
@@ -325,6 +326,8 @@ export class LabScene {
       ) continue;
       shadow.addShadowCaster(mesh, true);
     }
+
+    installOhmGlbShells(this.scene, shadow);
   }
 
   private createTerminal(
