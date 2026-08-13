@@ -29,6 +29,9 @@ import {
   type TerminalId,
 } from '../../core/types';
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
+import { CircuitKeyVisual } from './CircuitKeyVisual';
+import { CompactResistorVisual } from './CompactResistorVisual';
+import { LampVisual } from './LampVisual';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
 import { installOhmVisualPolish } from './InstrumentVisualPolish';
 import { installOhmGlbShells } from './GlbInstrumentShells';
@@ -80,7 +83,7 @@ interface PickMetadata {
   readonly connectionId?: string;
   readonly looseWireId?: string;
   readonly looseWireEnd?: LooseWireEnd;
-  readonly instrumentControl?: 'source-voltage' | 'source-output' | 'resistor-resistance';
+  readonly instrumentControl?: 'source-voltage' | 'source-output' | 'resistor-resistance' | 'switch-toggle';
   readonly instrumentId?: InstrumentId;
 }
 
@@ -128,6 +131,11 @@ export class LabScene {
 
   private source!: PowerSupplyVisual;
   private resistor!: ResistorModuleVisual;
+  private resistor2!: CompactResistorVisual;
+  private resistor3!: CompactResistorVisual;
+  private resistor4!: CompactResistorVisual;
+  private circuitSwitch!: CircuitKeyVisual;
+  private lamp!: LampVisual;
   private ammeter!: AnalogMeterVisual;
   private voltmeter!: AnalogMeterVisual;
 
@@ -207,8 +215,8 @@ export class LabScene {
       'camera',
       -Math.PI / 2,
       1.16,
-      11.05,
-      new Vector3(0.05, 0.68, 0.48),
+      13.2,
+      new Vector3(0.05, 0.68, 0.42),
       this.scene,
     );
     this.camera.fov = 0.66;
@@ -216,8 +224,8 @@ export class LabScene {
     // Interactive orbit camera for the laboratory bench. The limits keep the
     // learner above the table and in front of the studio backdrop, while still
     // allowing a wide inspection angle around every instrument.
-    this.camera.lowerRadiusLimit = 5.4;
-    this.camera.upperRadiusLimit = 16.5;
+    this.camera.lowerRadiusLimit = 6.2;
+    this.camera.upperRadiusLimit = 21;
     this.camera.lowerBetaLimit = 0.46;
     this.camera.upperBetaLimit = 1.48;
     this.camera.lowerAlphaLimit = -Math.PI + 0.16;
@@ -315,7 +323,7 @@ export class LabScene {
 
     const ground = MeshBuilder.CreateGround(
       'bench-pick-surface',
-      { width: 11.55, height: 5.85 },
+      { width: 14.1, height: 8.35 },
       this.scene,
     );
     ground.position.y = 0.005;
@@ -325,7 +333,7 @@ export class LabScene {
 
     const benchSlab = MeshBuilder.CreateBox(
       'bench-slab',
-      { width: 11.72, height: 0.2, depth: 6.02 },
+      { width: 14.3, height: 0.2, depth: 8.55 },
       this.scene,
     );
     benchSlab.position.y = -0.105;
@@ -335,7 +343,7 @@ export class LabScene {
 
     const mat = MeshBuilder.CreateBox(
       'bench-mat',
-      { width: 9.9, height: 0.028, depth: 4.6 },
+      { width: 12.95, height: 0.028, depth: 6.75 },
       this.scene,
     );
     mat.position = new Vector3(0, 0.027, 0.48);
@@ -345,17 +353,17 @@ export class LabScene {
 
     const matFrontTrim = MeshBuilder.CreateBox(
       'bench-mat-front-trim',
-      { width: 9.94, height: 0.035, depth: 0.035 },
+      { width: 13.0, height: 0.035, depth: 0.035 },
       this.scene,
     );
-    matFrontTrim.position = new Vector3(0, 0.052, -1.835);
+    matFrontTrim.position = new Vector3(0, 0.052, -2.89);
     matFrontTrim.material = this.theme.chrome;
     matFrontTrim.isPickable = false;
 
-    for (const x of [-4.97, 4.97]) {
+    for (const x of [-6.5, 6.5]) {
       const sideTrim = MeshBuilder.CreateBox(
         `bench-mat-side-trim-${x}`,
-        { width: 0.035, height: 0.035, depth: 4.63 },
+        { width: 0.035, height: 0.035, depth: 6.78 },
         this.scene,
       );
       sideTrim.position = new Vector3(x, 0.052, 0.48);
@@ -365,19 +373,19 @@ export class LabScene {
 
     const frontLip = MeshBuilder.CreateBox(
       'bench-front-lip',
-      { width: 11.82, height: 0.18, depth: 0.13 },
+      { width: 14.4, height: 0.18, depth: 0.13 },
       this.scene,
     );
-    frontLip.position = new Vector3(0, -0.08, -2.94);
+    frontLip.position = new Vector3(0, -0.08, -4.18);
     frontLip.material = this.theme.darkMetal;
     frontLip.isPickable = false;
 
     const backRail = MeshBuilder.CreateBox(
       'bench-back-rail',
-      { width: 11.7, height: 0.16, depth: 0.12 },
+      { width: 14.3, height: 0.16, depth: 0.12 },
       this.scene,
     );
-    backRail.position = new Vector3(0, 0.1, 3.0);
+    backRail.position = new Vector3(0, 0.1, 4.22);
     backRail.material = this.theme.darkMetal;
     backRail.isPickable = false;
 
@@ -402,6 +410,53 @@ export class LabScene {
       new Vector3(-0.7, 0, -0.75),
       ids.resistorA,
       ids.resistorB,
+      registerTerminal,
+    );
+
+    this.resistor2 = new CompactResistorVisual(
+      this.scene,
+      this.theme,
+      'resistor-02',
+      'R2',
+      new Vector3(2.05, 0, -2.35),
+      ids.resistor2A,
+      ids.resistor2B,
+      registerTerminal,
+    );
+    this.resistor3 = new CompactResistorVisual(
+      this.scene,
+      this.theme,
+      'resistor-03',
+      'R3',
+      new Vector3(-3.85, 0, -2.35),
+      ids.resistor3A,
+      ids.resistor3B,
+      registerTerminal,
+    );
+    this.resistor4 = new CompactResistorVisual(
+      this.scene,
+      this.theme,
+      'resistor-04',
+      'R4',
+      new Vector3(5.0, 0, -2.35),
+      ids.resistor4A,
+      ids.resistor4B,
+      registerTerminal,
+    );
+    this.circuitSwitch = new CircuitKeyVisual(
+      this.scene,
+      this.theme,
+      new Vector3(-0.7, 0, 3.0),
+      ids.switchA,
+      ids.switchB,
+      registerTerminal,
+    );
+    this.lamp = new LampVisual(
+      this.scene,
+      this.theme,
+      new Vector3(5.2, 0, 2.55),
+      ids.lampA,
+      ids.lampB,
       registerTerminal,
     );
 
@@ -467,7 +522,7 @@ export class LabScene {
   }
 
   private setupInstrumentRoots(): void {
-    const ids: readonly InstrumentId[] = ['source', 'resistor', 'ammeter', 'voltmeter'];
+    const ids: readonly InstrumentId[] = ['source', 'resistor', 'resistor-02', 'resistor-03', 'resistor-04', 'switch', 'lamp', 'ammeter', 'voltmeter'];
     for (const id of ids) {
       const root = new TransformNode(`instrument-root:${id}`, this.scene);
       const standard = STANDARD_INSTRUMENT_ANCHORS[id];
@@ -785,6 +840,15 @@ export class LabScene {
         return;
       }
 
+      if (metadata?.instrumentControl === 'switch-toggle') {
+        const circuitSwitch = this.runtime.circuit.snapshot().components.find((component) => component.id === ids.switch);
+        if (circuitSwitch?.kind === 'switch') {
+          circuitSwitch.closed = !circuitSwitch.closed;
+          this.runtime.recalculate();
+        }
+        return;
+      }
+
       if (metadata?.terminalId) {
         this.selectedConnection = null;
         this.runtime.chooseTerminal(terminalId(metadata.terminalId));
@@ -818,7 +882,7 @@ export class LabScene {
     if (metadata?.looseWireId && metadata.looseWireEnd) this.canvas.style.cursor = 'grab';
     else if (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance') this.canvas.style.cursor = 'grab';
     else if (metadata?.instrumentId) this.canvas.style.cursor = 'move';
-    else if (metadata?.instrumentControl === 'source-output') this.canvas.style.cursor = 'pointer';
+    else if (metadata?.instrumentControl === 'source-output' || metadata?.instrumentControl === 'switch-toggle') this.canvas.style.cursor = 'pointer';
     else if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
     else if (metadata?.connectionId) this.canvas.style.cursor = 'pointer';
     else this.canvas.style.cursor = selectedTerminal ? 'crosshair' : 'default';
@@ -889,9 +953,9 @@ export class LabScene {
 
   private clampLooseWirePoint(point: Vector3): Vector3 {
     return new Vector3(
-      Math.min(4.55, Math.max(-4.55, point.x)),
+      Math.min(6.2, Math.max(-6.2, point.x)),
       Math.max(0.13, point.y),
-      Math.min(2.42, Math.max(-1.48, point.z)),
+      Math.min(3.42, Math.max(-3.25, point.z)),
     );
   }
 
@@ -1199,6 +1263,11 @@ export class LabScene {
     const base: Record<InstrumentId, CableCollider> = {
       source: { min: new Vector3(-4.78, -0.5, 0.52), max: new Vector3(-1.9, 1.94, 2.3) },
       resistor: { min: new Vector3(-2.12, -0.5, -1.38), max: new Vector3(0.72, 1.18, -0.08) },
+      'resistor-02': { min: new Vector3(1.05, -0.5, -2.9), max: new Vector3(3.05, 0.98, -1.8) },
+      'resistor-03': { min: new Vector3(-4.85, -0.5, -2.9), max: new Vector3(-2.85, 0.98, -1.8) },
+      'resistor-04': { min: new Vector3(4.0, -0.5, -2.9), max: new Vector3(6.0, 0.98, -1.8) },
+      switch: { min: new Vector3(-1.65, -0.5, 2.43), max: new Vector3(0.25, 1.08, 3.58) },
+      lamp: { min: new Vector3(4.42, -0.5, 1.77), max: new Vector3(5.98, 1.72, 3.33) },
       ammeter: { min: new Vector3(2.42, -0.5, -0.98), max: new Vector3(4.68, 1.95, 0.16) },
       voltmeter: { min: new Vector3(0.4, -0.5, 1.12), max: new Vector3(2.56, 1.86, 2.24) },
     };
@@ -1373,6 +1442,11 @@ export class LabScene {
     const ammeterMeasurement = state.result.measurements[ids.ammeter];
     const voltmeterMeasurement = state.result.measurements[ids.voltmeter];
     const resistorMeasurement = state.result.measurements[ids.resistor];
+    const resistor2Measurement = state.result.measurements[ids.resistor2];
+    const resistor3Measurement = state.result.measurements[ids.resistor3];
+    const resistor4Measurement = state.result.measurements[ids.resistor4];
+    const lampMeasurement = state.result.measurements[ids.lamp];
+    const circuitSwitch = snapshot.components.find((component) => component.id === ids.switch);
 
     this.source.setVoltage(sourceVoltage);
     this.source.setOutputEnabled(sourceEnabled);
@@ -1382,6 +1456,11 @@ export class LabScene {
     );
     this.resistor.setResistance(resistance);
     this.resistor.setPower(resistorMeasurement?.power ?? state.result.power ?? 0);
+    this.resistor2.setPower(resistor2Measurement?.power ?? 0);
+    this.resistor3.setPower(resistor3Measurement?.power ?? 0);
+    this.resistor4.setPower(resistor4Measurement?.power ?? 0);
+    this.lamp.setElectrical(lampMeasurement?.voltage ?? 0, lampMeasurement?.power ?? 0);
+    this.circuitSwitch.setClosed(circuitSwitch?.kind === 'switch' ? circuitSwitch.closed : false);
     this.ammeter.setValue(
       ammeterMeasurement?.current ?? 0,
       Boolean(ammeterMeasurement?.overload),
