@@ -123,46 +123,46 @@ h1 { margin: 4px 0 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em;
 .circuit-status[data-state="short-circuit"], .circuit-status[data-state="invalid"] { border-color: #6c3438; color: var(--red); background: #261518; }
 .scene-wrap { position: relative; min-height: 0; background: #0e1216; }
 #lab-canvas { width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
-.equipment-tray {
+.equipment-dock {
   position: absolute;
   top: 14px;
   left: 14px;
   z-index: 4;
-  width: 178px;
+  width: 238px;
   padding: 10px;
-  border: 1px solid rgba(79, 115, 134, .55);
-  border-radius: 10px;
-  background: rgba(9, 14, 18, .88);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, .28);
+  border: 1px solid rgba(84, 214, 244, .26);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(13, 23, 29, .94), rgba(6, 11, 15, .88));
+  backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .34), inset 0 1px 0 rgba(255,255,255,.035);
+  transition: width .2s ease, background .2s ease;
 }
-.equipment-tray-head { display: grid; gap: 2px; margin: 0 2px 9px; }
-.equipment-tray-head span { color: var(--cyan); font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .09em; }
-.equipment-tray-head small { color: #677681; font-size: 10px; }
-.equipment-item {
-  position: relative;
-  width: 100%;
-  min-height: 46px;
-  margin-top: 6px;
-  padding: 7px 28px 7px 10px;
-  display: grid;
-  gap: 2px;
-  text-align: left;
-  border: 1px solid #273640;
-  border-radius: 7px;
-  background: rgba(17, 25, 31, .92);
-  color: #d8e1e7;
-  cursor: grab;
-}
-.equipment-item:hover { border-color: #3e7b91; background: #12232b; }
-.equipment-item.dragging { opacity: .55; cursor: grabbing; }
-.equipment-item.placed { border-color: #315c48; }
-.equipment-item.placed::after { content: 'НА СТОЛЕ'; position: absolute; right: 8px; bottom: 6px; color: #69d893; font: 700 7px ui-monospace, monospace; }
-.equipment-item b { font-size: 11px; font-weight: 650; }
-.equipment-item small { color: #70808b; font: 9px ui-monospace, monospace; }
-.equipment-item em { position: absolute; right: 9px; top: 8px; color: #5e7b89; font-style: normal; letter-spacing: -2px; }
-.equipment-clear { width: 100%; margin-top: 9px; min-height: 30px; border: 1px solid #303d46; border-radius: 7px; background: transparent; color: #7f8e98; cursor: pointer; font-size: 10px; }
-.equipment-clear:hover { color: #c2cbd1; border-color: #465760; }
+.equipment-dock::before { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: linear-gradient(90deg, rgba(84,217,244,.08), transparent 42%); }
+.equipment-dock-head { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 2px 9px; }
+.equipment-dock-head div { display: grid; gap: 2px; min-width: 0; }
+.equipment-dock-head span { color: #75e7ff; font: 800 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; }
+.equipment-dock-head small { color: #687985; font-size: 10px; white-space: nowrap; }
+.equipment-dock-toggle { position: relative; z-index: 1; width: 28px; height: 28px; flex: 0 0 auto; border: 1px solid #2a4653; border-radius: 8px; background: rgba(13,24,30,.86); color: #8ddff0; cursor: pointer; font-size: 15px; }
+.equipment-dock-toggle:hover { border-color: #4a879c; color: #d5f8ff; }
+.equipment-grid { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.equipment-item { position: relative; min-width: 0; min-height: 88px; padding: 10px 8px 8px; display: grid; grid-template-rows: 34px auto 12px; align-content: start; justify-items: start; gap: 5px; text-align: left; border: 1px solid #273842; border-radius: 11px; background: linear-gradient(160deg, rgba(20,32,39,.94), rgba(10,17,22,.92)); color: #dce8ed; cursor: grab; overflow: hidden; transition: transform .14s ease, border-color .14s ease, background .14s ease, box-shadow .14s ease; }
+.equipment-item::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 18% 0%, rgba(90,224,255,.11), transparent 48%); }
+.equipment-item:hover { transform: translateY(-2px); border-color: #427f93; background: linear-gradient(160deg, rgba(19,42,51,.96), rgba(10,20,25,.94)); box-shadow: 0 8px 18px rgba(0,0,0,.24); }
+.equipment-item.dragging { opacity: .55; transform: scale(.97); cursor: grabbing; }
+.equipment-item.placed { border-color: rgba(74, 190, 121, .62); box-shadow: inset 0 0 0 1px rgba(67,195,116,.08); }
+.equipment-icon { position: relative; z-index: 1; width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #356273; border-radius: 9px; background: rgba(8, 22, 29, .85); color: #86e9ff; font: 800 18px/1 ui-monospace, monospace; text-shadow: 0 0 13px rgba(84,217,244,.25); }
+.equipment-copy { position: relative; z-index: 1; display: grid; gap: 2px; min-width: 0; }
+.equipment-copy b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; font-weight: 680; }
+.equipment-copy small { color: #71828d; font: 8.5px ui-monospace, monospace; }
+.equipment-state { position: relative; z-index: 1; color: #57717e; font: 700 7px ui-monospace, monospace; letter-spacing: .08em; }
+.equipment-item.placed .equipment-state { color: #6ddd9a; }
+.equipment-dock-foot { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-top: 9px; padding-top: 8px; border-top: 1px solid rgba(75,101,115,.22); color: #647681; font: 8px/1.35 ui-monospace, monospace; }
+.equipment-clear { grid-column: 1 / -1; min-height: 28px; margin-top: 3px; border: 1px solid #2c3d47; border-radius: 8px; background: rgba(8,14,18,.48); color: #7f919d; cursor: pointer; font-size: 9px; }
+.equipment-clear:hover { color: #c7d3d9; border-color: #485e69; }
+.equipment-dock.collapsed { width: 48px; padding: 8px; }
+.equipment-dock.collapsed .equipment-dock-head { padding: 0; }
+.equipment-dock.collapsed .equipment-dock-head div, .equipment-dock.collapsed .equipment-grid, .equipment-dock.collapsed .equipment-dock-foot { display: none; }
+.equipment-dock.collapsed .equipment-dock-toggle { width: 32px; height: 32px; margin: 0 auto; }
 #lab-canvas.equipment-drop-active { outline: 2px solid rgba(84, 217, 244, .65); outline-offset: -3px; }
 
 .scene-hint {

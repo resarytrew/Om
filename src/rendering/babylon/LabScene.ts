@@ -32,7 +32,7 @@ import {
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
 import { installOhmGlbShells } from './GlbInstrumentShells';
-import { clampInstrumentAnchor, instrumentFromNodeName, STANDARD_INSTRUMENT_ANCHORS, type InstrumentId } from './InstrumentPlacement';
+import { clampInstrumentAnchor, instrumentFromNodeName, normalizeInstrumentRotation, STANDARD_INSTRUMENT_ANCHORS, type InstrumentId } from './InstrumentPlacement';
 import { PhysicalCable, PhysicalCableSystem, type CableCollider } from './PhysicalCable';
 import { clampRotaryTravel, normalizeAngleDelta, rotaryTravelToValue } from './RotaryControl';
 import {
@@ -93,6 +93,11 @@ export class LabScene {
   private activeInstrumentDrag: InstrumentId | null = null;
   private instrumentDragPointerId: number | null = null;
   private instrumentDragOffset = Vector3.Zero();
+  private activeInstrumentRotate: InstrumentId | null = null;
+  private instrumentRotatePointerId: number | null = null;
+  private instrumentRotateCenterX = 0;
+  private instrumentRotateCenterY = 0;
+  private instrumentRotateLastAngle = 0;
 
   private source!: PowerSupplyVisual;
   private resistor!: ResistorModuleVisual;
@@ -141,6 +146,7 @@ export class LabScene {
     this.canvas.addEventListener('lab:place-instrument', this.handlePlaceInstrumentEvent as EventListener);
     this.canvas.addEventListener('lab:arrange-standard', this.handleArrangeStandard as EventListener);
     this.canvas.addEventListener('lab:clear-bench', this.handleClearBench as EventListener);
+    this.canvas.addEventListener('contextmenu', this.handleContextMenu);
   }
 
   dispose(): void {
@@ -151,6 +157,7 @@ export class LabScene {
     this.canvas.removeEventListener('lab:place-instrument', this.handlePlaceInstrumentEvent as EventListener);
     this.canvas.removeEventListener('lab:arrange-standard', this.handleArrangeStandard as EventListener);
     this.canvas.removeEventListener('lab:clear-bench', this.handleClearBench as EventListener);
+    this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
     this.previewWire?.dispose();
     this.cablePhysics.dispose();
     this.scene.dispose();
@@ -398,6 +405,8 @@ export class LabScene {
     const ids: readonly InstrumentId[] = ['source', 'resistor', 'ammeter', 'voltmeter'];
     for (const id of ids) {
       const root = new TransformNode(`instrument-root:${id}`, this.scene);
+      const standard = STANDARD_INSTRUMENT_ANCHORS[id];
+      root.setPivotPoint(new Vector3(standard.x, 0, standard.z));
       this.instrumentRoots.set(id, root);
     }
 
@@ -510,10 +519,28 @@ export class LabScene {
 
       if (pointerInfo.type === PointerEventTypes.POINTERDOWN && metadata?.instrumentId && this.placedInstruments.has(metadata.instrumentId)) {
         const event = pointerInfo.event as PointerEvent;
-        const point = this.pickBenchAtClient(event.clientX, event.clientY);
         const root = this.instrumentRoots.get(metadata.instrumentId);
         const standard = STANDARD_INSTRUMENT_ANCHORS[metadata.instrumentId];
-        if (point && root) {
+        if (!root) return;
+
+        const rotateRequested = event.button === 2 || event.shiftKey || event.altKey;
+        if (rotateRequested) {
+          const anchor = new Vector3(standard.x + root.position.x, 0, standard.z + root.position.z);
+          const center = this.worldToClient(anchor);
+          this.activeInstrumentRotate = metadata.instrumentId;
+          this.instrumentRotatePointerId = event.pointerId;
+          this.instrumentRotateCenterX = center.x;
+          this.instrumentRotateCenterY = center.y;
+          this.instrumentRotateLastAngle = Math.atan2(event.clientY - center.y, event.clientX - center.x);
+          this.camera.detachControl();
+          this.canvas.setPointerCapture?.(event.pointerId);
+          this.canvas.style.cursor = 'grabbing';
+          event.preventDefault();
+          return;
+        }
+
+        const point = this.pickBenchAtClient(event.clientX, event.clientY);
+        if (point) {
           const anchor = new Vector3(standard.x + root.position.x, 0, standard.z + root.position.z);
           this.activeInstrumentDrag = metadata.instrumentId;
           this.instrumentDragPointerId = event.pointerId;
@@ -524,6 +551,29 @@ export class LabScene {
           event.preventDefault();
           return;
         }
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeInstrumentRotate) {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.instrumentRotatePointerId !== null && event.pointerId !== this.instrumentRotatePointerId) return;
+        const dx = event.clientX - this.instrumentRotateCenterX;
+        const dy = event.clientY - this.instrumentRotateCenterY;
+        if (Math.hypot(dx, dy) < 12) return;
+        const angle = Math.atan2(dy, dx);
+        const delta = normalizeAngleDelta(angle - this.instrumentRotateLastAngle);
+        this.instrumentRotateLastAngle = angle;
+        this.rotateInstrument(this.activeInstrumentRotate, delta);
+        event.preventDefault();
+        return;
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERUP && this.activeInstrumentRotate) {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.instrumentRotatePointerId === null || event.pointerId === this.instrumentRotatePointerId) {
+          this.finishInstrumentRotate(event.pointerId);
+          event.preventDefault();
+        }
+        return;
       }
 
       if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeInstrumentDrag) {
@@ -695,7 +745,7 @@ export class LabScene {
   private moveInstrument(id: InstrumentId, requested: Vector3): void {
     const root = this.instrumentRoots.get(id);
     if (!root) return;
-    const anchor = clampInstrumentAnchor(id, requested);
+    const anchor = clampInstrumentAnchor(id, requested, root.rotation.y);
     const standard = STANDARD_INSTRUMENT_ANCHORS[id];
     root.position.x = anchor.x - standard.x;
     root.position.z = anchor.z - standard.z;
@@ -706,8 +756,22 @@ export class LabScene {
     this.emitInstrumentPresence();
   }
 
+  private rotateInstrument(id: InstrumentId, delta: number): void {
+    const root = this.instrumentRoots.get(id);
+    if (!root) return;
+    const standard = STANDARD_INSTRUMENT_ANCHORS[id];
+    const currentAnchor = new Vector3(standard.x + root.position.x, 0, standard.z + root.position.z);
+    root.rotation.y = normalizeInstrumentRotation(root.rotation.y + delta);
+    const clamped = clampInstrumentAnchor(id, currentAnchor, root.rotation.y);
+    root.position.x = clamped.x - standard.x;
+    root.position.z = clamped.z - standard.z;
+    this.refreshCableColliders();
+  }
+
   private placeAtStandard(id: InstrumentId): void {
     const standard = STANDARD_INSTRUMENT_ANCHORS[id];
+    const root = this.instrumentRoots.get(id);
+    if (root) root.rotation.y = 0;
     this.moveInstrument(id, new Vector3(standard.x, 0, standard.z));
   }
 
@@ -728,6 +792,7 @@ export class LabScene {
 
   private readonly handleClearBench = (): void => {
     this.finishInstrumentDrag();
+    this.finishInstrumentRotate();
     for (const root of this.instrumentRoots.values()) root.setEnabled(false);
     this.placedInstruments.clear();
     this.refreshCableColliders();
@@ -743,6 +808,19 @@ export class LabScene {
     }
     this.camera.attachControl(this.canvas, true, true);
   }
+
+  private finishInstrumentRotate(pointerId?: number): void {
+    this.activeInstrumentRotate = null;
+    this.instrumentRotatePointerId = null;
+    if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) {
+      this.canvas.releasePointerCapture?.(pointerId);
+    }
+    this.camera.attachControl(this.canvas, true, true);
+  }
+
+  private readonly handleContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
+  };
 
   private emitInstrumentPresence(): void {
     this.canvas.dispatchEvent(new CustomEvent('lab:instrument-presence', {
@@ -760,8 +838,27 @@ export class LabScene {
     };
     const colliders: CableCollider[] = [];
     for (const id of this.placedInstruments) {
-      const offset = this.instrumentRoots.get(id)?.position ?? Vector3.Zero();
-      colliders.push({ min: base[id].min.add(offset), max: base[id].max.add(offset) });
+      const root = this.instrumentRoots.get(id);
+      if (!root) continue;
+      const standard = STANDARD_INSTRUMENT_ANCHORS[id];
+      const anchor = new Vector3(standard.x + root.position.x, 0, standard.z + root.position.z);
+      const source = base[id];
+      const centerX = (source.min.x + source.max.x) * 0.5;
+      const centerZ = (source.min.z + source.max.z) * 0.5;
+      const halfX = (source.max.x - source.min.x) * 0.5;
+      const halfZ = (source.max.z - source.min.z) * 0.5;
+      const localCenterX = centerX - standard.x;
+      const localCenterZ = centerZ - standard.z;
+      const c = Math.cos(root.rotation.y);
+      const sn = Math.sin(root.rotation.y);
+      const rotatedCenterX = anchor.x + localCenterX * c + localCenterZ * sn;
+      const rotatedCenterZ = anchor.z - localCenterX * sn + localCenterZ * c;
+      const rotatedHalfX = Math.abs(c) * halfX + Math.abs(sn) * halfZ;
+      const rotatedHalfZ = Math.abs(sn) * halfX + Math.abs(c) * halfZ;
+      colliders.push({
+        min: new Vector3(rotatedCenterX - rotatedHalfX, source.min.y, rotatedCenterZ - rotatedHalfZ),
+        max: new Vector3(rotatedCenterX + rotatedHalfX, source.max.y, rotatedCenterZ + rotatedHalfZ),
+      });
     }
     this.cablePhysics.setColliders(colliders);
   }
