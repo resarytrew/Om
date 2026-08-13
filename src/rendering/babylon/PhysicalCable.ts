@@ -47,7 +47,7 @@ export function projectPointOutsideCollider(
     { distance: maxZ - point.z, axis: 'z' as const, value: maxZ + EPSILON },
   ];
   candidates.sort((a, b) => a.distance - b.distance);
-  const nearest = candidates[0];
+  const nearest = candidates[0]!;
   point[nearest.axis] = nearest.value;
   return true;
 }
@@ -115,10 +115,9 @@ export class PhysicalCable {
 
     this.restLengths = [];
     for (let index = 0; index < this.particles.length - 1; index += 1) {
-      this.restLengths.push(Vector3.Distance(
-        this.particles[index].position,
-        this.particles[index + 1].position,
-      ));
+      const current = this.particles[index]!;
+      const next = this.particles[index + 1]!;
+      this.restLengths.push(Vector3.Distance(current.position, next.position));
     }
 
     this.mesh = MeshBuilder.CreateTube(
@@ -153,12 +152,12 @@ export class PhysicalCable {
 
   solveLengthConstraints(): void {
     for (let index = 0; index < this.particles.length - 1; index += 1) {
-      const a = this.particles[index];
-      const b = this.particles[index + 1];
+      const a = this.particles[index]!;
+      const b = this.particles[index + 1]!;
       const delta = b.position.subtract(a.position);
       const distance = delta.length();
       if (distance < EPSILON) continue;
-      const error = (distance - this.restLengths[index]) / distance;
+      const error = (distance - this.restLengths[index]!) / distance;
 
       if (!a.pin && !b.pin) {
         const correction = delta.scale(error * 0.5);
@@ -176,7 +175,7 @@ export class PhysicalCable {
   solveEnvironment(colliders: readonly CableCollider[], floorY: number): void {
     const padding = this.radius * 1.18;
     for (let index = 2; index < this.particles.length - 2; index += 1) {
-      const particle = this.particles[index];
+      const particle = this.particles[index]!;
       const floorHit = clampPointToBench(particle.position, floorY + this.radius);
       let obstacleHit = false;
       for (const collider of colliders) {
@@ -184,7 +183,7 @@ export class PhysicalCable {
       }
       if (floorHit || obstacleHit) {
         // Remove most penetration velocity so a cable settles instead of buzzing.
-        particle.previous.lerpInPlace(particle.position, 0.72);
+        particle.previous.copyFrom(Vector3.Lerp(particle.previous, particle.position, 0.72));
       }
     }
     this.restorePins();
@@ -196,8 +195,8 @@ export class PhysicalCable {
     for (let aIndex = 2; aIndex < this.particles.length - 2; aIndex += 1) {
       for (let bIndex = aIndex + 3; bIndex < this.particles.length - 2; bIndex += 1) {
         this.separateParticles(
-          this.particles[aIndex],
-          this.particles[bIndex],
+          this.particles[aIndex]!,
+          this.particles[bIndex]!,
           minDistance,
           minDistanceSquared,
         );
@@ -211,8 +210,8 @@ export class PhysicalCable {
     for (let aIndex = 2; aIndex < this.particles.length - 2; aIndex += 1) {
       for (let bIndex = 2; bIndex < other.particles.length - 2; bIndex += 1) {
         this.separateParticles(
-          this.particles[aIndex],
-          other.particles[bIndex],
+          this.particles[aIndex]!,
+          other.particles[bIndex]!,
           minDistance,
           minDistanceSquared,
         );
@@ -322,7 +321,7 @@ export class PhysicalCableSystem {
       }
       for (let first = 0; first < cables.length; first += 1) {
         for (let second = first + 1; second < cables.length; second += 1) {
-          cables[first].solveCollisionWith(cables[second]);
+          cables[first]!.solveCollisionWith(cables[second]!);
         }
       }
     }
