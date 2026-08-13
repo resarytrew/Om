@@ -8,7 +8,7 @@ export const componentId = (value: string) => value as ComponentId;
 export const terminalId = (value: string) => value as TerminalId;
 export const connectionId = (value: string) => value as ConnectionId;
 
-export type ComponentKind = 'voltage-source' | 'resistor' | 'ammeter' | 'voltmeter';
+export type ComponentKind = 'voltage-source' | 'resistor' | 'lamp' | 'switch' | 'ammeter' | 'voltmeter';
 export type Polarity = 'positive' | 'negative' | 'neutral';
 
 export interface Terminal {
@@ -43,6 +43,17 @@ export interface ResistorComponent extends ComponentBase {
   resistance: number;
 }
 
+export interface LampComponent extends ComponentBase {
+  readonly kind: 'lamp';
+  resistance: number;
+  ratedVoltage: number;
+}
+
+export interface SwitchComponent extends ComponentBase {
+  readonly kind: 'switch';
+  closed: boolean;
+}
+
 export interface AmmeterComponent extends ComponentBase {
   readonly kind: 'ammeter';
   range: number;
@@ -58,6 +69,8 @@ export interface VoltmeterComponent extends ComponentBase {
 export type PhysicalComponent =
   | VoltageSourceComponent
   | ResistorComponent
+  | LampComponent
+  | SwitchComponent
   | AmmeterComponent
   | VoltmeterComponent;
 

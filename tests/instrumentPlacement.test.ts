@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BENCH_BOUNDS,
   clampInstrumentAnchor,
   instrumentFromNodeName,
   instrumentHalfExtents,
@@ -13,18 +14,27 @@ describe('instrument placement', () => {
     expect(instrumentFromNodeName('source-front-panel')).toBe('source');
     expect(instrumentFromNodeName('terminal:source-01:+')).toBe('source');
     expect(instrumentFromNodeName('power-resistor-body')).toBe('resistor');
+    expect(instrumentFromNodeName('resistor-02-body')).toBe('resistor-02');
+    expect(instrumentFromNodeName('resistor-03-base')).toBe('resistor-03');
+    expect(instrumentFromNodeName('resistor-04-label')).toBe('resistor-04');
+    expect(instrumentFromNodeName('switch-01-lever')).toBe('switch');
+    expect(instrumentFromNodeName('lamp-01-bulb')).toBe('lamp');
     expect(instrumentFromNodeName('ammeter-dial-glass')).toBe('ammeter');
     expect(instrumentFromNodeName('voltmeter-needle-pivot')).toBe('voltmeter');
     expect(instrumentFromNodeName('bench-mat')).toBeNull();
   });
 
-  it('keeps instrument anchors inside the usable bench area', () => {
+  it('keeps instrument anchors inside the expanded usable bench area', () => {
     const source = clampInstrumentAnchor('source', { x: -100, z: 100 });
-    expect(source.x).toBeGreaterThan(-4.9);
-    expect(source.z).toBeLessThan(2.72);
+    expect(source.x).toBeGreaterThan(BENCH_BOUNDS.minX);
+    expect(source.z).toBeLessThan(BENCH_BOUNDS.maxZ);
 
     const resistor = clampInstrumentAnchor('resistor', STANDARD_INSTRUMENT_ANCHORS.resistor);
     expect(resistor).toEqual(STANDARD_INSTRUMENT_ANCHORS.resistor);
+
+    for (const id of ['resistor-02', 'resistor-03', 'resistor-04', 'switch', 'lamp'] as const) {
+      expect(clampInstrumentAnchor(id, STANDARD_INSTRUMENT_ANCHORS[id])).toEqual(STANDARD_INSTRUMENT_ANCHORS[id]);
+    }
   });
 
   it('expands the axis-aligned footprint when an instrument is rotated', () => {
@@ -43,8 +53,8 @@ describe('instrument placement', () => {
     expect(normalizeInstrumentRotation(Number.NaN)).toBe(0);
 
     const rotated = clampInstrumentAnchor('ammeter', { x: 100, z: -100 }, Math.PI / 2);
-    expect(rotated.x).toBeLessThan(4.9);
-    expect(rotated.z).toBeGreaterThan(-1.78);
+    expect(rotated.x).toBeLessThan(BENCH_BOUNDS.maxX);
+    expect(rotated.z).toBeGreaterThan(BENCH_BOUNDS.minZ);
   });
 
   it('smoothly approaches a target rotation without jumping across the wrap boundary', () => {

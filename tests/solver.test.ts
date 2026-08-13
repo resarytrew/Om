@@ -111,4 +111,47 @@ describe('Ohm circuit solver', () => {
     expect(runtime.getState().result.status).toBe('open');
     expect(runtime.getState().result.current).toBe(0);
   });
+
+  it('adds several resistors to one real series circuit', () => {
+    const runtime = createOhmsLawRuntime();
+    runtime.circuit.connect(ids.sourcePlus, ids.resistorA);
+    runtime.circuit.connect(ids.resistorB, ids.resistor2A);
+    runtime.circuit.connect(ids.resistor2B, ids.ammeterPlus);
+    runtime.circuit.connect(ids.ammeterMinus, ids.sourceMinus);
+    runtime.recalculate();
+    expect(runtime.getState().result.status).toBe('closed');
+    expect(runtime.getState().result.current).toBeCloseTo(1, 8);
+    expect(runtime.getState().result.equivalentResistance).toBeCloseTo(6, 8);
+  });
+
+  it('uses the key to physically open and close the series branch', () => {
+    const runtime = createOhmsLawRuntime();
+    runtime.circuit.connect(ids.sourcePlus, ids.switchA);
+    runtime.circuit.connect(ids.switchB, ids.resistorA);
+    runtime.circuit.connect(ids.resistorB, ids.ammeterPlus);
+    runtime.circuit.connect(ids.ammeterMinus, ids.sourceMinus);
+    runtime.recalculate();
+    expect(runtime.getState().result.status).toBe('open');
+
+    const key = runtime.circuit.snapshot().components.find((component) => component.id === ids.switch);
+    expect(key?.kind).toBe('switch');
+    if (key?.kind !== 'switch') return;
+    key.closed = true;
+    runtime.recalculate();
+    expect(runtime.getState().result.status).toBe('closed');
+    expect(runtime.getState().result.current).toBeCloseTo(2, 8);
+  });
+
+  it('treats the lamp as an electrical load', () => {
+    const runtime = createOhmsLawRuntime();
+    runtime.circuit.connect(ids.sourcePlus, ids.lampA);
+    runtime.circuit.connect(ids.lampB, ids.ammeterPlus);
+    runtime.circuit.connect(ids.ammeterMinus, ids.sourceMinus);
+    runtime.recalculate();
+    const result = runtime.getState().result;
+    expect(result.status).toBe('closed');
+    expect(result.current).toBeCloseTo(0.5, 8);
+    expect(result.measurements[ids.lamp]?.voltage).toBeCloseTo(6, 8);
+    expect(result.measurements[ids.lamp]?.power).toBeCloseTo(3, 8);
+  });
 });

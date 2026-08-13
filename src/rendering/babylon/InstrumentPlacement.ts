@@ -1,4 +1,13 @@
-export type InstrumentId = 'source' | 'resistor' | 'ammeter' | 'voltmeter';
+export type InstrumentId =
+  | 'source'
+  | 'resistor'
+  | 'resistor-02'
+  | 'resistor-03'
+  | 'resistor-04'
+  | 'switch'
+  | 'lamp'
+  | 'ammeter'
+  | 'voltmeter';
 
 export interface BenchPoint {
   readonly x: number;
@@ -8,6 +17,11 @@ export interface BenchPoint {
 export const STANDARD_INSTRUMENT_ANCHORS: Record<InstrumentId, BenchPoint> = {
   source: { x: -3.35, z: 1.45 },
   resistor: { x: -0.7, z: -0.75 },
+  'resistor-02': { x: 2.05, z: -2.35 },
+  'resistor-03': { x: -3.85, z: -2.35 },
+  'resistor-04': { x: 5.0, z: -2.35 },
+  switch: { x: -0.7, z: 3.0 },
+  lamp: { x: 5.2, z: 2.55 },
   ammeter: { x: 3.55, z: -0.35 },
   voltmeter: { x: 1.48, z: 1.72 },
 };
@@ -15,15 +29,20 @@ export const STANDARD_INSTRUMENT_ANCHORS: Record<InstrumentId, BenchPoint> = {
 const HALF_FOOTPRINT: Record<InstrumentId, BenchPoint> = {
   source: { x: 1.48, z: 0.92 },
   resistor: { x: 1.46, z: 0.72 },
+  'resistor-02': { x: 1.08, z: 0.62 },
+  'resistor-03': { x: 1.08, z: 0.62 },
+  'resistor-04': { x: 1.08, z: 0.62 },
+  switch: { x: 1.0, z: 0.68 },
+  lamp: { x: 0.92, z: 0.82 },
   ammeter: { x: 1.16, z: 0.72 },
   voltmeter: { x: 1.08, z: 0.72 },
 };
 
-const BENCH = {
-  minX: -4.9,
-  maxX: 4.9,
-  minZ: -1.78,
-  maxZ: 2.72,
+export const BENCH_BOUNDS = {
+  minX: -6.6,
+  maxX: 6.6,
+  minZ: -3.55,
+  maxZ: 3.72,
 } as const;
 
 function clamp(value: number, min: number, max: number): number {
@@ -66,12 +85,17 @@ export function instrumentHalfExtents(id: InstrumentId, rotationY = 0): BenchPoi
 export function clampInstrumentAnchor(id: InstrumentId, point: BenchPoint, rotationY = 0): BenchPoint {
   const half = instrumentHalfExtents(id, rotationY);
   return {
-    x: clamp(point.x, BENCH.minX + half.x, BENCH.maxX - half.x),
-    z: clamp(point.z, BENCH.minZ + half.z, BENCH.maxZ - half.z),
+    x: clamp(point.x, BENCH_BOUNDS.minX + half.x, BENCH_BOUNDS.maxX - half.x),
+    z: clamp(point.z, BENCH_BOUNDS.minZ + half.z, BENCH_BOUNDS.maxZ - half.z),
   };
 }
 
 export function instrumentFromNodeName(name: string): InstrumentId | null {
+  if (name.includes('resistor-04')) return 'resistor-04';
+  if (name.includes('resistor-03')) return 'resistor-03';
+  if (name.includes('resistor-02')) return 'resistor-02';
+  if (name.includes('switch-01') || name.startsWith('switch-')) return 'switch';
+  if (name.includes('lamp-01') || name.startsWith('lamp-')) return 'lamp';
   if (name.includes('source-01') || name.startsWith('source-')) return 'source';
   if (name.includes('resistor-01') || name.startsWith('resistor-') || name.startsWith('power-resistor-')) return 'resistor';
   if (name.includes('ammeter-01') || name.startsWith('ammeter-')) return 'ammeter';
