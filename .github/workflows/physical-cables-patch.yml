@@ -5,6 +5,7 @@ on:
     branches:
       - agent/physical-cables
     paths:
+      - src/rendering/babylon/PhysicalCable.ts
       - scripts/patch_physical_cables.mjs
       - .github/workflows/physical-cables-patch.yml
 
