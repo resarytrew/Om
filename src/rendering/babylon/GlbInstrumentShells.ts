@@ -67,23 +67,23 @@ export function installOhmGlbShells(scene: Scene, shadow: ShadowGenerator): void
   const specs: readonly ShellSpec[] = [
     {
       file: 'power-supply-shell.glb',
-      position: new Vector3(-2.75, 0.94, 0.4),
+      position: new Vector3(-3.35, 0.94, 1.45),
       fallbackNames: ['source-shell'],
       fallbackPrefixes: ['source-vent-'],
     },
     {
       file: 'analog-meter-shell.glb',
-      position: new Vector3(2.25, 0.96, 0.34),
+      position: new Vector3(3.55, 0.96, -0.35),
       fallbackNames: ['ammeter-shell'],
     },
     {
       file: 'analog-meter-shell.glb',
-      position: new Vector3(0.55, 0.96, 1.94),
+      position: new Vector3(1.48, 0.96, 1.72),
       fallbackNames: ['voltmeter-shell'],
     },
     {
       file: 'resistor-base.glb',
-      position: new Vector3(-0.4, 0.24, 0.48),
+      position: new Vector3(-0.7, 0.24, -0.75),
       fallbackNames: ['resistor-module-base', 'resistor-module-deck'],
     },
   ];
