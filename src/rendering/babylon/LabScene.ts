@@ -18,6 +18,7 @@ import {
   Scene,
   ShadowGenerator,
   StandardMaterial,
+  TransformNode,
   Vector3,
 } from '@babylonjs/core';
 import type { SimulationRuntime, SimulationState } from '../../core/simulation';
@@ -31,6 +32,7 @@ import {
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
 import { installOhmGlbShells } from './GlbInstrumentShells';
+import { clampInstrumentAnchor, instrumentFromNodeName, STANDARD_INSTRUMENT_ANCHORS, type InstrumentId } from './InstrumentPlacement';
 import { PhysicalCable, PhysicalCableSystem, type CableCollider } from './PhysicalCable';
 import { clampRotaryTravel, normalizeAngleDelta, rotaryTravelToValue } from './RotaryControl';
 import {
@@ -49,6 +51,10 @@ interface TerminalVisual {
 interface WireVisual {
   readonly cable: PhysicalCable;
   readonly plugs: readonly Mesh[];
+  readonly plugFrom: readonly Mesh[];
+  readonly plugTo: readonly Mesh[];
+  readonly from: TerminalId;
+  readonly to: TerminalId;
   readonly material: PBRMaterial;
   readonly baseColor: Color3;
 }
@@ -57,6 +63,7 @@ interface PickMetadata {
   readonly terminalId?: string;
   readonly connectionId?: string;
   readonly instrumentControl?: 'source-voltage' | 'source-output' | 'resistor-resistance';
+  readonly instrumentId?: InstrumentId;
 }
 
 export class LabScene {
@@ -81,6 +88,11 @@ export class LabScene {
   private controlTravel = 0;
   private controlStartVoltage = 0;
   private controlStartResistance = 3;
+  private readonly instrumentRoots = new Map<InstrumentId, TransformNode>();
+  private readonly placedInstruments = new Set<InstrumentId>();
+  private activeInstrumentDrag: InstrumentId | null = null;
+  private instrumentDragPointerId: number | null = null;
+  private instrumentDragOffset = Vector3.Zero();
 
   private source!: PowerSupplyVisual;
   private resistor!: ResistorModuleVisual;
@@ -118,6 +130,7 @@ export class LabScene {
       this.resistor.tick(dt);
       this.ammeter.tick(dt);
       this.voltmeter.tick(dt);
+      this.syncMovingConnections();
       this.cablePhysics.step(dt);
       this.scene.render();
     });
@@ -125,6 +138,9 @@ export class LabScene {
     this.resizeObserver.observe(canvas);
     this.canvas.addEventListener('keydown', this.handleKeyDown);
     this.canvas.addEventListener('wheel', this.handleControlWheel, { passive: false });
+    this.canvas.addEventListener('lab:place-instrument', this.handlePlaceInstrumentEvent as EventListener);
+    this.canvas.addEventListener('lab:arrange-standard', this.handleArrangeStandard as EventListener);
+    this.canvas.addEventListener('lab:clear-bench', this.handleClearBench as EventListener);
   }
 
   dispose(): void {
@@ -132,6 +148,9 @@ export class LabScene {
     this.resizeObserver?.disconnect();
     this.canvas.removeEventListener('keydown', this.handleKeyDown);
     this.canvas.removeEventListener('wheel', this.handleControlWheel);
+    this.canvas.removeEventListener('lab:place-instrument', this.handlePlaceInstrumentEvent as EventListener);
+    this.canvas.removeEventListener('lab:arrange-standard', this.handleArrangeStandard as EventListener);
+    this.canvas.removeEventListener('lab:clear-bench', this.handleClearBench as EventListener);
     this.previewWire?.dispose();
     this.cablePhysics.dispose();
     this.scene.dispose();
@@ -349,16 +368,12 @@ export class LabScene {
       registerTerminal,
     );
 
-    // Cable collision volumes deliberately extend a little in front of every
-    // face panel. This prevents a physical lead from crossing dial/display
-    // textures while still allowing it to settle on the top and around sides.
-    const cableColliders: CableCollider[] = [
-      { min: new Vector3(-4.78, -0.5, 0.52), max: new Vector3(-1.9, 1.94, 2.3) },
-      { min: new Vector3(-2.12, -0.5, -1.38), max: new Vector3(0.72, 1.18, -0.08) },
-      { min: new Vector3(2.42, -0.5, -0.98), max: new Vector3(4.68, 1.95, 0.16) },
-      { min: new Vector3(0.4, -0.5, 1.12), max: new Vector3(2.56, 1.86, 2.24) },
-    ];
-    this.cablePhysics = new PhysicalCableSystem(cableColliders, 0.045);
+    this.setupInstrumentRoots();
+
+    // Collision boxes are rebuilt from the placed instrument roots so cables
+    // keep respecting faces even after a learner rearranges the apparatus.
+    this.cablePhysics = new PhysicalCableSystem([], 0.045);
+    this.refreshCableColliders();
 
     for (const mesh of this.scene.meshes) {
       if (
@@ -371,7 +386,40 @@ export class LabScene {
       shadow.addShadowCaster(mesh, true);
     }
 
-    installOhmGlbShells(this.scene, shadow);
+    installOhmGlbShells(
+      this.scene,
+      shadow,
+      (instrumentId) => this.instrumentRoots.get(instrumentId as InstrumentId),
+    );
+    this.emitInstrumentPresence();
+  }
+
+  private setupInstrumentRoots(): void {
+    const ids: readonly InstrumentId[] = ['source', 'resistor', 'ammeter', 'voltmeter'];
+    for (const id of ids) {
+      const root = new TransformNode(`instrument-root:${id}`, this.scene);
+      this.instrumentRoots.set(id, root);
+    }
+
+    for (const node of [...this.scene.transformNodes]) {
+      if (node.name.startsWith('instrument-root:') || node.parent) continue;
+      const instrument = instrumentFromNodeName(node.name);
+      if (instrument) node.parent = this.instrumentRoots.get(instrument) ?? null;
+    }
+
+    for (const mesh of this.scene.meshes) {
+      const instrument = instrumentFromNodeName(mesh.name);
+      if (!instrument) continue;
+      if (!mesh.parent) mesh.parent = this.instrumentRoots.get(instrument) ?? null;
+      const metadata = (mesh.metadata ?? {}) as PickMetadata;
+      if (!metadata.instrumentControl && !metadata.terminalId && !metadata.connectionId) {
+        mesh.metadata = { ...metadata, instrumentId: instrument } satisfies PickMetadata;
+        mesh.isPickable = true;
+      }
+    }
+
+    // Manual mode starts as a real construction task: an empty bench.
+    for (const root of this.instrumentRoots.values()) root.setEnabled(false);
   }
 
   private createTerminal(
@@ -457,6 +505,42 @@ export class LabScene {
         this.camera.detachControl();
         this.canvas.setPointerCapture?.(event.pointerId);
         event.preventDefault();
+        return;
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERDOWN && metadata?.instrumentId && this.placedInstruments.has(metadata.instrumentId)) {
+        const event = pointerInfo.event as PointerEvent;
+        const point = this.pickBenchAtClient(event.clientX, event.clientY);
+        const root = this.instrumentRoots.get(metadata.instrumentId);
+        const standard = STANDARD_INSTRUMENT_ANCHORS[metadata.instrumentId];
+        if (point && root) {
+          const anchor = new Vector3(standard.x + root.position.x, 0, standard.z + root.position.z);
+          this.activeInstrumentDrag = metadata.instrumentId;
+          this.instrumentDragPointerId = event.pointerId;
+          this.instrumentDragOffset = anchor.subtract(point);
+          this.camera.detachControl();
+          this.canvas.setPointerCapture?.(event.pointerId);
+          this.canvas.style.cursor = 'grabbing';
+          event.preventDefault();
+          return;
+        }
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeInstrumentDrag) {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.instrumentDragPointerId !== null && event.pointerId !== this.instrumentDragPointerId) return;
+        const point = this.pickBenchAtClient(event.clientX, event.clientY);
+        if (point) this.moveInstrument(this.activeInstrumentDrag, point.add(this.instrumentDragOffset));
+        event.preventDefault();
+        return;
+      }
+
+      if (pointerInfo.type === PointerEventTypes.POINTERUP && this.activeInstrumentDrag) {
+        const event = pointerInfo.event as PointerEvent;
+        if (this.instrumentDragPointerId === null || event.pointerId === this.instrumentDragPointerId) {
+          this.finishInstrumentDrag(event.pointerId);
+          event.preventDefault();
+        }
         return;
       }
 
@@ -547,6 +631,7 @@ export class LabScene {
     this.hoveredTerminal = nextHovered;
 
     if (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance') this.canvas.style.cursor = 'grab';
+    else if (metadata?.instrumentId) this.canvas.style.cursor = 'move';
     else if (metadata?.instrumentControl === 'source-output') this.canvas.style.cursor = 'pointer';
     else if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
     else if (metadata?.connectionId) this.canvas.style.cursor = 'pointer';
@@ -559,14 +644,14 @@ export class LabScene {
       return;
     }
 
-    const from = this.terminalMeshes.get(selectedTerminal)?.mesh.position;
+    const from = this.terminalMeshes.get(selectedTerminal)?.mesh.getAbsolutePosition();
     if (!from) {
       this.clearPreviewWire();
       return;
     }
 
     const snapped = this.hoveredTerminal
-      ? this.terminalMeshes.get(this.hoveredTerminal)?.mesh.position
+      ? this.terminalMeshes.get(this.hoveredTerminal)?.mesh.getAbsolutePosition()
       : null;
     const groundPick = !snapped && this.bench
       ? this.scene.pick(this.scene.pointerX, this.scene.pointerY, (mesh) => mesh === this.bench)
@@ -597,6 +682,88 @@ export class LabScene {
       x: rect.left + (projected.x / renderWidth) * rect.width,
       y: rect.top + (projected.y / renderHeight) * rect.height,
     };
+  }
+
+  private pickBenchAtClient(clientX: number, clientY: number): Vector3 | null {
+    if (!this.bench) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    const x = (clientX - rect.left) * (this.engine.getRenderWidth() / Math.max(1, rect.width));
+    const y = (clientY - rect.top) * (this.engine.getRenderHeight() / Math.max(1, rect.height));
+    return this.scene.pick(x, y, (mesh) => mesh === this.bench)?.pickedPoint?.clone() ?? null;
+  }
+
+  private moveInstrument(id: InstrumentId, requested: Vector3): void {
+    const root = this.instrumentRoots.get(id);
+    if (!root) return;
+    const anchor = clampInstrumentAnchor(id, requested);
+    const standard = STANDARD_INSTRUMENT_ANCHORS[id];
+    root.position.x = anchor.x - standard.x;
+    root.position.z = anchor.z - standard.z;
+    root.position.y = 0;
+    root.setEnabled(true);
+    this.placedInstruments.add(id);
+    this.refreshCableColliders();
+    this.emitInstrumentPresence();
+  }
+
+  private placeAtStandard(id: InstrumentId): void {
+    const standard = STANDARD_INSTRUMENT_ANCHORS[id];
+    this.moveInstrument(id, new Vector3(standard.x, 0, standard.z));
+  }
+
+  private readonly handlePlaceInstrumentEvent = (rawEvent: Event): void => {
+    const event = rawEvent as CustomEvent<{ instrument?: string; clientX?: number; clientY?: number }>;
+    const instrument = event.detail?.instrument as InstrumentId | undefined;
+    if (!instrument || !this.instrumentRoots.has(instrument)) return;
+    const point = typeof event.detail.clientX === 'number' && typeof event.detail.clientY === 'number'
+      ? this.pickBenchAtClient(event.detail.clientX, event.detail.clientY)
+      : null;
+    if (point) this.moveInstrument(instrument, point);
+    else this.placeAtStandard(instrument);
+  };
+
+  private readonly handleArrangeStandard = (): void => {
+    for (const id of this.instrumentRoots.keys()) this.placeAtStandard(id);
+  };
+
+  private readonly handleClearBench = (): void => {
+    this.finishInstrumentDrag();
+    for (const root of this.instrumentRoots.values()) root.setEnabled(false);
+    this.placedInstruments.clear();
+    this.refreshCableColliders();
+    this.clearPreviewWire();
+    this.emitInstrumentPresence();
+  };
+
+  private finishInstrumentDrag(pointerId?: number): void {
+    this.activeInstrumentDrag = null;
+    this.instrumentDragPointerId = null;
+    if (pointerId !== undefined && this.canvas.hasPointerCapture?.(pointerId)) {
+      this.canvas.releasePointerCapture?.(pointerId);
+    }
+    this.camera.attachControl(this.canvas, true, true);
+  }
+
+  private emitInstrumentPresence(): void {
+    this.canvas.dispatchEvent(new CustomEvent('lab:instrument-presence', {
+      detail: { placed: [...this.placedInstruments] },
+    }));
+  }
+
+  private refreshCableColliders(): void {
+    if (!this.cablePhysics) return;
+    const base: Record<InstrumentId, CableCollider> = {
+      source: { min: new Vector3(-4.78, -0.5, 0.52), max: new Vector3(-1.9, 1.94, 2.3) },
+      resistor: { min: new Vector3(-2.12, -0.5, -1.38), max: new Vector3(0.72, 1.18, -0.08) },
+      ammeter: { min: new Vector3(2.42, -0.5, -0.98), max: new Vector3(4.68, 1.95, 0.16) },
+      voltmeter: { min: new Vector3(0.4, -0.5, 1.12), max: new Vector3(2.56, 1.86, 2.24) },
+    };
+    const colliders: CableCollider[] = [];
+    for (const id of this.placedInstruments) {
+      const offset = this.instrumentRoots.get(id)?.position ?? Vector3.Zero();
+      colliders.push({ min: base[id].min.add(offset), max: base[id].max.add(offset) });
+    }
+    this.cablePhysics.setColliders(colliders);
   }
 
   private currentSourceVoltage(): number {
@@ -794,8 +961,8 @@ export class LabScene {
 
     for (const connection of connections) {
       if (this.connectionMeshes.has(connection.id)) continue;
-      const from = this.terminalMeshes.get(connection.from)?.mesh.position;
-      const to = this.terminalMeshes.get(connection.to)?.mesh.position;
+      const from = this.terminalMeshes.get(connection.from)?.mesh.getAbsolutePosition();
+      const to = this.terminalMeshes.get(connection.to)?.mesh.getAbsolutePosition();
       if (!from || !to) continue;
 
       const fromTerminal = this.runtime.circuit.getTerminal(connection.from);
@@ -843,12 +1010,36 @@ export class LabScene {
       this.connectionMeshes.set(connection.id, {
         cable,
         plugs: [...plugFrom, ...plugTo],
+        plugFrom,
+        plugTo,
+        from: connection.from,
+        to: connection.to,
         material,
         baseColor,
       });
     }
 
     this.refreshConnectionStyles();
+  }
+
+  private syncMovingConnections(): void {
+    for (const visual of this.connectionMeshes.values()) {
+      const from = this.terminalMeshes.get(visual.from)?.mesh.getAbsolutePosition();
+      const to = this.terminalMeshes.get(visual.to)?.mesh.getAbsolutePosition();
+      if (!from || !to) continue;
+      visual.cable.updateAnchors(from, to);
+      this.positionBananaPlug(visual.plugFrom, from);
+      this.positionBananaPlug(visual.plugTo, to);
+    }
+  }
+
+  private positionBananaPlug(meshes: readonly Mesh[], terminalPosition: Vector3): void {
+    const sleeve = meshes[0];
+    const collar = meshes[1];
+    const strainRelief = meshes[2];
+    if (sleeve) sleeve.position = terminalPosition.add(new Vector3(0, 0, -0.27));
+    if (collar) collar.position = terminalPosition.add(new Vector3(0, 0, -0.155));
+    if (strainRelief) strainRelief.position = terminalPosition.add(new Vector3(0, 0, -0.455));
   }
 
   private createBananaPlug(
