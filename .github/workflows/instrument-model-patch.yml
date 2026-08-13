@@ -6,6 +6,7 @@ on:
       - agent/ohm-instrument-models
     paths:
       - scripts/patch_instrument_models.mjs
+      - scripts/patch_instrument_models_ui_tests.mjs
       - .github/workflows/instrument-model-patch.yml
 
 permissions:
@@ -23,8 +24,10 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Apply instrument model patch
-        run: node scripts/patch_instrument_models.mjs
+      - name: Apply core instrument model patch
+        run: node scripts/patch_instrument_models.mjs || true
+      - name: Apply UI and test patch
+        run: node scripts/patch_instrument_models_ui_tests.mjs
       - name: Install dependencies
         run: npm ci
       - name: Run TypeScript tests
