@@ -301,7 +301,7 @@ export class LabScene {
         id: 'ammeter',
         label: 'ammeter',
         unit: 'A',
-        max: 4,
+        max: 5,
         decimals: 2,
         position: new Vector3(3.55, 0, -0.35),
         plus: ids.ammeterPlus,

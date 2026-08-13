@@ -11,6 +11,7 @@ import {
 } from '@babylonjs/core';
 import type { TerminalId } from '../../core/types';
 import type { InstrumentTheme } from './InstrumentTheme';
+import { clampMeterAngle, meterNeedleAngle, METER_ZERO_ANGLE } from './MeterScale';
 
 export type TerminalPolarity = 'positive' | 'negative' | 'neutral';
 export type TerminalRegistrar = (
@@ -479,8 +480,8 @@ interface AnalogMeterSpec {
 export class AnalogMeterVisual {
   private readonly needlePivot: TransformNode;
   private readonly warningLed: Mesh;
-  private targetAngle = 0;
-  private currentAngle = 0;
+  private targetAngle = METER_ZERO_ANGLE;
+  private currentAngle = METER_ZERO_ANGLE;
   private readonly max: number;
 
   constructor(
@@ -627,9 +628,7 @@ export class AnalogMeterVisual {
   }
 
   setValue(value: number, overload: boolean): void {
-    const safe = Number.isFinite(value) ? Math.max(0, value) : this.max;
-    const ratio = Math.min(1, safe / this.max);
-    this.targetAngle = 1.03 - ratio * 2.06;
+    this.targetAngle = meterNeedleAngle(value, this.max);
     const material = this.warningLed.material as StandardMaterial | null;
     if (material) {
       material.diffuseColor = overload
@@ -644,6 +643,7 @@ export class AnalogMeterVisual {
   tick(dt: number): void {
     const factor = 1 - Math.exp(-dt * 9);
     this.currentAngle += (this.targetAngle - this.currentAngle) * factor;
+    this.currentAngle = clampMeterAngle(this.currentAngle);
     this.needlePivot.rotation.z = this.currentAngle;
   }
 
