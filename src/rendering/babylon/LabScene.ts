@@ -2,6 +2,7 @@ import {
   ArcRotateCamera,
   Color3,
   Color4,
+  CubeTexture,
   Curve3,
   DefaultRenderingPipeline,
   DirectionalLight,
@@ -28,6 +29,7 @@ import {
 } from '../../core/types';
 import { ids } from '../../experiments/ohms-law/createOhmsLaw';
 import { createInstrumentTheme, type InstrumentTheme } from './InstrumentTheme';
+import { installOhmGlbShells } from './GlbInstrumentShells';
 import {
   AnalogMeterVisual,
   PowerSupplyVisual,
@@ -86,6 +88,10 @@ export class LabScene {
     this.scene.imageProcessingConfiguration.contrast = 1.1;
     this.scene.imageProcessingConfiguration.exposure = 1.08;
     this.theme = createInstrumentTheme(this.scene);
+    this.scene.environmentTexture = CubeTexture.CreateFromPrefilteredData(
+      `${import.meta.env.BASE_URL}models/ohm/studio.env`,
+      this.scene,
+    );
 
     this.buildScene();
     this.bindInteractions();
@@ -116,16 +122,16 @@ export class LabScene {
     const camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2,
-      1.315,
-      9.6,
-      new Vector3(-0.02, 0.83, 0.58),
+      1.385,
+      10.55,
+      new Vector3(-0.08, 0.88, 0.66),
       this.scene,
     );
-    camera.fov = 0.6;
-    camera.lowerRadiusLimit = 9.1;
-    camera.upperRadiusLimit = 10.4;
-    camera.lowerBetaLimit = 1.25;
-    camera.upperBetaLimit = 1.36;
+    camera.fov = 0.57;
+    camera.lowerRadiusLimit = 10.1;
+    camera.upperRadiusLimit = 11.1;
+    camera.lowerBetaLimit = 1.34;
+    camera.upperBetaLimit = 1.42;
     camera.lowerAlphaLimit = -1.67;
     camera.upperAlphaLimit = -1.47;
     camera.wheelPrecision = 180;
@@ -146,7 +152,7 @@ export class LabScene {
       new Vector3(-0.1, 1, -0.16),
       this.scene,
     );
-    hemi.intensity = 0.48;
+    hemi.intensity = 0.34;
     hemi.diffuse = new Color3(0.88, 0.92, 0.95);
     hemi.groundColor = new Color3(0.11, 0.12, 0.13);
 
@@ -156,7 +162,7 @@ export class LabScene {
       this.scene,
     );
     key.position = new Vector3(-4.8, 7.2, -5.4);
-    key.intensity = 1.72;
+    key.intensity = 1.48;
     key.diffuse = new Color3(1.0, 0.91, 0.8);
 
     const fill = new PointLight(
@@ -164,7 +170,7 @@ export class LabScene {
       new Vector3(4.4, 3.8, -3.6),
       this.scene,
     );
-    fill.intensity = 11.5;
+    fill.intensity = 7.8;
     fill.diffuse = new Color3(0.67, 0.82, 0.95);
 
     const frontFill = new PointLight(
@@ -172,7 +178,7 @@ export class LabScene {
       new Vector3(-0.4, 2.2, -5.1),
       this.scene,
     );
-    frontFill.intensity = 7.5;
+    frontFill.intensity = 5.8;
     frontFill.diffuse = new Color3(0.94, 0.95, 0.94);
 
     const rim = new PointLight(
@@ -180,7 +186,7 @@ export class LabScene {
       new Vector3(-0.8, 4.8, 3.15),
       this.scene,
     );
-    rim.intensity = 8.5;
+    rim.intensity = 6.6;
     rim.diffuse = new Color3(0.5, 0.7, 0.86);
 
     const shadow = new ShadowGenerator(2048, key);
@@ -208,6 +214,7 @@ export class LabScene {
     wallRail.position = new Vector3(0, 1.22, 3.55);
     wallRail.material = this.theme.darkMetal;
     wallRail.isPickable = false;
+    wallRail.setEnabled(false);
 
     const ground = MeshBuilder.CreateGround(
       'bench-pick-surface',
@@ -266,7 +273,7 @@ export class LabScene {
     this.source = new PowerSupplyVisual(
       this.scene,
       this.theme,
-      new Vector3(-3.12, 0, 0.4),
+      new Vector3(-2.75, 0, 0.4),
       ids.sourcePlus,
       ids.sourceMinus,
       registerTerminal,
@@ -275,7 +282,7 @@ export class LabScene {
     this.resistor = new ResistorModuleVisual(
       this.scene,
       this.theme,
-      new Vector3(-0.58, 0, 0.48),
+      new Vector3(-0.4, 0, 0.48),
       ids.resistorA,
       ids.resistorB,
       registerTerminal,
@@ -290,7 +297,7 @@ export class LabScene {
         unit: 'A',
         max: 4,
         decimals: 2,
-        position: new Vector3(2.62, 0, 0.34),
+        position: new Vector3(2.25, 0, 0.34),
         plus: ids.ammeterPlus,
         minus: ids.ammeterMinus,
       },
@@ -306,7 +313,7 @@ export class LabScene {
         unit: 'V',
         max: 12,
         decimals: 2,
-        position: new Vector3(0.86, 0, 1.93),
+        position: new Vector3(0.55, 0, 1.94),
         plus: ids.voltmeterPlus,
         minus: ids.voltmeterMinus,
         width: 1.96,
@@ -325,6 +332,8 @@ export class LabScene {
       ) continue;
       shadow.addShadowCaster(mesh, true);
     }
+
+    installOhmGlbShells(this.scene, shadow);
   }
 
   private createTerminal(

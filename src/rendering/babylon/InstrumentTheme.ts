@@ -76,8 +76,8 @@ export function createInstrumentTheme(scene: Scene): InstrumentTheme {
   const frontPanel = pbr(scene, 'front-panel', new Color3(0.285, 0.305, 0.315), 0.13, 0.46);
   frontPanel.environmentIntensity = 0.9;
 
-  const meterPanel = pbr(scene, 'meter-panel', new Color3(0.62, 0.63, 0.615), 0.04, 0.58);
-  meterPanel.environmentIntensity = 0.76;
+  const meterPanel = pbr(scene, 'meter-panel', new Color3(0.48, 0.49, 0.475), 0.06, 0.54);
+  meterPanel.environmentIntensity = 0.82;
 
   const meterBezel = pbr(scene, 'meter-bezel', new Color3(0.055, 0.062, 0.067), 0.16, 0.42);
   meterBezel.environmentIntensity = 0.82;
@@ -103,8 +103,8 @@ export function createInstrumentTheme(scene: Scene): InstrumentTheme {
   const benchMat = pbr(scene, 'bench-mat', new Color3(0.042, 0.052, 0.058), 0, 0.98);
   benchMat.environmentIntensity = 0.35;
 
-  const backdrop = pbr(scene, 'lab-backdrop', new Color3(0.035, 0.048, 0.058), 0, 0.94);
-  backdrop.environmentIntensity = 0.35;
+  const backdrop = pbr(scene, 'lab-backdrop', new Color3(0.026, 0.033, 0.039), 0, 0.97);
+  backdrop.environmentIntensity = 0.16;
 
   return {
     graphite,
