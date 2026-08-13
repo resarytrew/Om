@@ -748,6 +748,9 @@ export class AnalogMeterVisual {
 export class ResistorModuleVisual {
   private readonly valueTexture: DynamicTexture;
   private readonly ceramicMaterial: PBRMaterial;
+  private readonly adjustPivot: TransformNode;
+  private targetAdjustment = 0;
+  private currentAdjustment = 0;
 
   constructor(
     scene: Scene,
@@ -854,14 +857,74 @@ export class ResistorModuleVisual {
     createTextPlate(
       scene,
       'resistor-title',
-      new Vector3(position.x, 0.5, position.z - 0.625),
-      1.34,
+      new Vector3(position.x - 0.18, 0.5, position.z - 0.625),
+      1.08,
       0.16,
       ['RESISTANCE'],
       '#242b2f',
       'transparent',
       31,
       24,
+    );
+
+    const adjustCenter = new Vector3(position.x + 0.86, 0.52, position.z - 0.665);
+    const adjustRing = MeshBuilder.CreateTorus(
+      'resistor-adjust-ring',
+      { diameter: 0.42, thickness: 0.035, tessellation: 40 },
+      scene,
+    );
+    adjustRing.position = adjustCenter.add(new Vector3(0, 0, 0.045));
+    adjustRing.rotation.x = Math.PI / 2;
+    adjustRing.material = theme.meterBezel;
+    adjustRing.isPickable = false;
+
+    this.adjustPivot = new TransformNode('resistor-adjust-pivot', scene);
+    this.adjustPivot.position = adjustCenter;
+
+    const adjustKnob = MeshBuilder.CreateCylinder(
+      'resistor-adjust-knob',
+      { height: 0.18, diameter: 0.33, tessellation: 40 },
+      scene,
+    );
+    adjustKnob.position = Vector3.Zero();
+    adjustKnob.rotation.x = Math.PI / 2;
+    adjustKnob.parent = this.adjustPivot;
+    adjustKnob.material = theme.darkMetal;
+    adjustKnob.isPickable = true;
+    adjustKnob.metadata = { instrumentControl: 'resistor-resistance' };
+
+    const adjustCap = MeshBuilder.CreateCylinder(
+      'resistor-adjust-cap',
+      { height: 0.19, diameter: 0.21, tessellation: 40 },
+      scene,
+    );
+    adjustCap.position = new Vector3(0, 0, -0.012);
+    adjustCap.rotation.x = Math.PI / 2;
+    adjustCap.parent = this.adjustPivot;
+    adjustCap.material = theme.rubberBlack;
+    adjustCap.isPickable = true;
+    adjustCap.metadata = { instrumentControl: 'resistor-resistance' };
+
+    const adjustPointer = createBox(
+      scene,
+      'resistor-adjust-index',
+      new Vector3(0, 0.135, -0.105),
+      new Vector3(0.025, 0.09, 0.018),
+      theme.metal,
+    );
+    adjustPointer.parent = this.adjustPivot;
+
+    createTextPlate(
+      scene,
+      'resistor-adjust-label',
+      new Vector3(position.x + 0.86, 0.28, position.z - 0.64),
+      0.42,
+      0.1,
+      ['ADJ'],
+      '#242b2f',
+      'transparent',
+      24,
+      20,
     );
 
     registerTerminal(
@@ -883,6 +946,8 @@ export class ResistorModuleVisual {
   }
 
   setResistance(value: number): void {
+    const normalized = Math.min(1, Math.max(0, (value - 0.5) / 19.5));
+    this.targetAdjustment = Math.PI * 0.75 - normalized * Math.PI * 1.5;
     const context = this.valueTexture.getContext();
     context.clearRect(0, 0, 640, 190);
     context.fillStyle = '#d6d0bd';
@@ -899,6 +964,16 @@ export class ResistorModuleVisual {
       null,
       true,
     );
+  }
+
+  getResistanceKnobWorldPosition(): Vector3 {
+    return this.adjustPivot.getAbsolutePosition().clone();
+  }
+
+  tick(dt: number): void {
+    const factor = 1 - Math.exp(-dt * 9);
+    this.currentAdjustment += (this.targetAdjustment - this.currentAdjustment) * factor;
+    this.adjustPivot.rotation.z = this.currentAdjustment;
   }
 
   setPower(power: number): void {
