@@ -19,6 +19,7 @@ export class ElectricFieldScene {
   private readonly engine: Engine;
   private readonly scene: Scene;
   private readonly plate: Mesh;
+  private readonly plateMaterial: PBRMaterial;
   private readonly probe: Mesh;
   private vectors: LinesMesh | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -64,12 +65,12 @@ export class ElectricFieldScene {
       this.scene,
     );
     this.plate.position.y = 0.12;
-    const plateMaterial = new PBRMaterial('charged-plate-material', this.scene);
-    plateMaterial.albedoColor = new Color3(0.08, 0.33, 0.43);
-    plateMaterial.emissiveColor = new Color3(0.015, 0.08, 0.1);
-    plateMaterial.metallic = 0.32;
-    plateMaterial.roughness = 0.42;
-    this.plate.material = plateMaterial;
+    this.plateMaterial = new PBRMaterial('charged-plate-material', this.scene);
+    this.plateMaterial.albedoColor = new Color3(0.08, 0.33, 0.43);
+    this.plateMaterial.emissiveColor = new Color3(0.015, 0.08, 0.1);
+    this.plateMaterial.metallic = 0.32;
+    this.plateMaterial.roughness = 0.42;
+    this.plate.material = this.plateMaterial;
 
     this.probe = MeshBuilder.CreateSphere('field-probe', { diameter: 0.14, segments: 20 }, this.scene);
     const probeMaterial = new StandardMaterial('field-probe-material', this.scene);
@@ -86,6 +87,7 @@ export class ElectricFieldScene {
     this.plate.scaling.x = result.parameters.width;
     this.plate.scaling.z = result.parameters.height;
     this.probe.position.set(0, result.parameters.probe_z + 0.12, 0);
+    this.updatePolarity(result.parameters.sigma);
     this.drawVectors(result);
   }
 
@@ -98,6 +100,21 @@ export class ElectricFieldScene {
     this.vectors?.dispose();
     this.scene.dispose();
     this.engine.dispose();
+  }
+
+  private updatePolarity(sigma: number): void {
+    if (sigma > 0) {
+      this.plateMaterial.albedoColor = new Color3(0.08, 0.33, 0.43);
+      this.plateMaterial.emissiveColor = new Color3(0.015, 0.08, 0.1);
+      return;
+    }
+    if (sigma < 0) {
+      this.plateMaterial.albedoColor = new Color3(0.43, 0.12, 0.16);
+      this.plateMaterial.emissiveColor = new Color3(0.11, 0.02, 0.035);
+      return;
+    }
+    this.plateMaterial.albedoColor = new Color3(0.22, 0.24, 0.26);
+    this.plateMaterial.emissiveColor = new Color3(0.02, 0.02, 0.02);
   }
 
   private drawVectors(result: ChargedPlateResult): void {
@@ -134,7 +151,9 @@ export class ElectricFieldScene {
       { lines },
       this.scene,
     );
-    this.vectors.color = new Color3(0.28, 0.76, 0.92);
+    this.vectors.color = result.parameters.sigma < 0
+      ? new Color3(0.95, 0.43, 0.48)
+      : new Color3(0.28, 0.76, 0.92);
     this.vectors.alpha = 0.82;
     this.vectors.isPickable = false;
   }
