@@ -49,6 +49,15 @@ export class SimulationRuntime {
     this.recalculate();
   }
 
+  setSourceEnabled(enabled: boolean): void {
+    const source = this.circuit
+      .snapshot()
+      .components.find((component): component is VoltageSourceComponent => component.kind === 'voltage-source');
+    if (!source || source.enabled === enabled) return;
+    source.enabled = enabled;
+    this.recalculate();
+  }
+
   setResistance(value: number): void {
     const resistor = this.circuit
       .snapshot()
