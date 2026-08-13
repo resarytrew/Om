@@ -1,0 +1,49 @@
+.field-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: -3px 0 12px;
+}
+.field-preset {
+  min-height: 32px;
+  padding: 5px 7px;
+  border: 1px solid #2a3842;
+  border-radius: 7px;
+  background: #10161b;
+  color: #8f9da6;
+  cursor: pointer;
+  font-size: 10px;
+}
+.field-preset:hover { color: var(--cyan); border-color: #37677a; background: #10202a; }
+.field-auto {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 13px;
+  padding: 9px 10px;
+  border: 1px solid #27343d;
+  border-radius: 7px;
+  background: #0f151a;
+  color: #97a4ad;
+  font-size: 11px;
+  cursor: pointer;
+}
+.field-auto input { accent-color: var(--cyan); }
+.field-button-row { display: grid; grid-template-columns: 1fr .7fr; gap: 7px; margin-top: 17px; }
+.field-button-row #field-run { margin-top: 0; }
+.field-button-row button { min-height: 40px; border-radius: 7px; }
+.field-polarity {
+  margin: 11px 0 -3px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: #75828b;
+  font-size: 10px;
+}
+.field-polarity span:nth-child(2) { color: #aeb8be; }
+.field-probe-row strong[data-direction="negative"] { color: #ef8a92; }
+.field-probe-row strong[data-direction="positive"] { color: #64d78f; }
+
+@media (max-width: 1280px) {
+  .field-presets { grid-template-columns: 1fr; }
+}

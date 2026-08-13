@@ -2,18 +2,37 @@ import { ScientificFieldClient } from '../../scientific/field/ScientificFieldCli
 import type { ChargedPlateParameters, ChargedPlateResult } from '../../scientific/field/protocol';
 import { ElectricFieldScene } from './ElectricFieldScene';
 
+type FieldPreset = 'reference' | 'wide' | 'negative';
+
 export class FieldWorkbenchController {
   private readonly client = new ScientificFieldClient();
   private scene: ElectricFieldScene | null = null;
   private initialized = false;
   private activeSolve = 0;
+  private autoSolve = true;
+  private solveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly root: HTMLElement) {
+    this.installEnhancedControls();
+
     this.root.querySelector<HTMLButtonElement>('#field-run')?.addEventListener('click', () => {
       void this.solve();
     });
+    this.root.querySelector<HTMLButtonElement>('#field-reset')?.addEventListener('click', () => {
+      this.applyPreset('reference');
+    });
+    this.root.querySelector<HTMLInputElement>('#field-auto')?.addEventListener('change', (event) => {
+      this.autoSolve = (event.currentTarget as HTMLInputElement).checked;
+      if (this.autoSolve && this.initialized) this.scheduleSolve(80);
+    });
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-field-preset]')) {
+      button.addEventListener('click', () => this.applyPreset(button.dataset.fieldPreset as FieldPreset));
+    }
     for (const id of ['field-width', 'field-height', 'field-sigma', 'field-resolution', 'field-probe-z']) {
-      this.root.querySelector<HTMLInputElement>(`#${id}`)?.addEventListener('input', () => this.updateControlLabels());
+      this.root.querySelector<HTMLInputElement>(`#${id}`)?.addEventListener('input', () => {
+        this.updateControlLabels();
+        if (this.autoSolve && this.initialized) this.scheduleSolve();
+      });
     }
     this.updateControlLabels();
   }
@@ -30,9 +49,68 @@ export class FieldWorkbenchController {
   }
 
   dispose(): void {
+    if (this.solveTimer !== null) clearTimeout(this.solveTimer);
     this.scene?.dispose();
     this.scene = null;
     this.client.dispose();
+  }
+
+  private installEnhancedControls(): void {
+    const sigma = this.root.querySelector<HTMLInputElement>('#field-sigma');
+    if (sigma) {
+      sigma.min = '-5';
+      sigma.max = '5';
+    }
+
+    const title = this.root.querySelector<HTMLElement>('.field-controls-card .panel-title');
+    if (title && !this.root.querySelector('.field-presets')) {
+      title.insertAdjacentHTML('afterend', `
+        <div class="field-presets" role="group" aria-label="Готовые конфигурации поля">
+          <button class="field-preset" type="button" data-field-preset="reference">Эталон</button>
+          <button class="field-preset" type="button" data-field-preset="wide">Большая пластина</button>
+          <button class="field-preset" type="button" data-field-preset="negative">− заряд</button>
+        </div>`);
+    }
+
+    const run = this.root.querySelector<HTMLButtonElement>('#field-run');
+    if (run && !this.root.querySelector('#field-reset')) {
+      run.insertAdjacentHTML('beforebegin', `
+        <div class="field-polarity"><span>σ &lt; 0: поле направлено к пластине</span><span>σ &gt; 0: от пластины</span></div>
+        <label class="field-auto"><input id="field-auto" type="checkbox" checked> Пересчитывать автоматически после изменения параметров</label>
+        <div class="field-button-row" id="field-button-row"></div>`);
+      const row = this.root.querySelector<HTMLElement>('#field-button-row');
+      row?.append(run);
+      row?.insertAdjacentHTML('beforeend', '<button id="field-reset" class="ghost" type="button">Сброс</button>');
+    }
+
+    const probeCard = this.root.querySelector<HTMLElement>('.field-probe-card');
+    if (probeCard && !this.root.querySelector('#field-total-charge')) {
+      probeCard.insertAdjacentHTML('beforeend', `
+        <div class="field-probe-row"><span>Q = σS</span><strong id="field-total-charge">—</strong></div>
+        <div class="field-probe-row"><span>направление</span><strong id="field-direction">—</strong></div>`);
+    }
+  }
+
+  private applyPreset(preset: FieldPreset): void {
+    const values: Record<FieldPreset, Record<string, number>> = {
+      reference: { 'field-width': 2, 'field-height': 1.2, 'field-sigma': 1, 'field-resolution': 36, 'field-probe-z': 0.75 },
+      wide: { 'field-width': 3, 'field-height': 2.4, 'field-sigma': 2, 'field-resolution': 52, 'field-probe-z': 0.45 },
+      negative: { 'field-width': 1.5, 'field-height': 1.5, 'field-sigma': -2.5, 'field-resolution': 48, 'field-probe-z': 1.1 },
+    };
+    for (const [id, value] of Object.entries(values[preset])) {
+      const input = this.root.querySelector<HTMLInputElement>(`#${id}`);
+      if (input) input.value = String(value);
+    }
+    this.updateControlLabels();
+    if (this.initialized) this.scheduleSolve(40);
+  }
+
+  private scheduleSolve(delay = 280): void {
+    if (this.solveTimer !== null) clearTimeout(this.solveTimer);
+    this.solveTimer = setTimeout(() => {
+      this.solveTimer = null;
+      void this.solve();
+    }, delay);
   }
 
   private readNumber(id: string): number {
@@ -114,6 +192,15 @@ export class FieldWorkbenchController {
     this.setText('#field-symmetry', this.scientific(result.validation.transverse_symmetry_ratio));
     this.setText('#field-far', this.percent(result.validation.far_relative_error));
     this.setText('#field-mesh', `${result.parameters.nx} × ${result.parameters.ny}`);
+
+    const totalCharge = result.parameters.sigma * result.parameters.width * result.parameters.height;
+    this.setText('#field-total-charge', `${this.format(totalCharge * 1e9)} нКл`);
+    const direction = this.root.querySelector<HTMLElement>('#field-direction');
+    if (direction) {
+      const polarity = Math.sign(result.parameters.sigma);
+      direction.textContent = polarity > 0 ? 'от пластины ↑' : polarity < 0 ? 'к пластине ↓' : 'поля нет';
+      direction.dataset.direction = polarity > 0 ? 'positive' : polarity < 0 ? 'negative' : 'zero';
+    }
 
     this.setCheck('#check-analytic', result.validation.relative_error < 0.015);
     this.setCheck('#check-convergence', result.validation.convergence_delta < 0.015);
