@@ -56,7 +56,7 @@ interface WireVisual {
 interface PickMetadata {
   readonly terminalId?: string;
   readonly connectionId?: string;
-  readonly instrumentControl?: 'source-voltage' | 'source-output';
+  readonly instrumentControl?: 'source-voltage' | 'source-output' | 'resistor-resistance';
 }
 
 export class LabScene {
@@ -73,13 +73,14 @@ export class LabScene {
   private selectedConnection: ConnectionId | null = null;
   private unsubscribe: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
-  private activeControl: 'source-voltage' | null = null;
+  private activeControl: 'source-voltage' | 'resistor-resistance' | null = null;
   private controlPointerId: number | null = null;
   private controlCenterX = 0;
   private controlCenterY = 0;
   private controlLastAngle = 0;
   private controlTravel = 0;
   private controlStartVoltage = 0;
+  private controlStartResistance = 3;
 
   private source!: PowerSupplyVisual;
   private resistor!: ResistorModuleVisual;
@@ -114,6 +115,7 @@ export class LabScene {
     this.engine.runRenderLoop(() => {
       const dt = Math.min(0.05, this.engine.getDeltaTime() / 1000);
       this.source.tick(dt);
+      this.resistor.tick(dt);
       this.ammeter.tick(dt);
       this.voltmeter.tick(dt);
       this.cablePhysics.step(dt);
@@ -435,16 +437,22 @@ export class LabScene {
     this.scene.onPointerObservable.add((pointerInfo) => {
       const metadata = (pointerInfo.pickInfo?.pickedMesh?.metadata ?? null) as PickMetadata | null;
 
-      if (pointerInfo.type === PointerEventTypes.POINTERDOWN && metadata?.instrumentControl === 'source-voltage') {
+      if (pointerInfo.type === PointerEventTypes.POINTERDOWN && (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance')) {
         const event = pointerInfo.event as PointerEvent;
-        const center = this.worldToClient(this.source.getVoltageKnobWorldPosition());
-        this.activeControl = 'source-voltage';
+        const resistorControl = metadata.instrumentControl === 'resistor-resistance';
+        const center = this.worldToClient(
+          resistorControl
+            ? this.resistor.getResistanceKnobWorldPosition()
+            : this.source.getVoltageKnobWorldPosition(),
+        );
+        this.activeControl = metadata.instrumentControl;
         this.controlPointerId = event.pointerId;
         this.controlCenterX = center.x;
         this.controlCenterY = center.y;
         this.controlLastAngle = Math.atan2(event.clientY - center.y, event.clientX - center.x);
         this.controlTravel = 0;
-        this.controlStartVoltage = this.currentSourceVoltage();
+        if (resistorControl) this.controlStartResistance = this.currentResistance();
+        else this.controlStartVoltage = this.currentSourceVoltage();
         this.canvas.style.cursor = 'grabbing';
         this.camera.detachControl();
         this.canvas.setPointerCapture?.(event.pointerId);
@@ -452,7 +460,7 @@ export class LabScene {
         return;
       }
 
-      if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeControl === 'source-voltage') {
+      if (pointerInfo.type === PointerEventTypes.POINTERMOVE && this.activeControl) {
         const event = pointerInfo.event as PointerEvent;
         if (this.controlPointerId !== null && event.pointerId !== this.controlPointerId) return;
         const dx = event.clientX - this.controlCenterX;
@@ -461,13 +469,25 @@ export class LabScene {
         const angle = Math.atan2(dy, dx);
         const delta = normalizeAngleDelta(angle - this.controlLastAngle);
         this.controlLastAngle = angle;
-        this.controlTravel = clampRotaryTravel(
-          this.controlStartVoltage,
-          this.controlTravel + delta,
-          12,
-        );
-        const next = rotaryTravelToValue(this.controlStartVoltage, this.controlTravel, 12);
-        this.runtime.setVoltage(Math.round(next * 20) / 20);
+
+        if (this.activeControl === 'source-voltage') {
+          this.controlTravel = clampRotaryTravel(
+            this.controlStartVoltage,
+            this.controlTravel + delta,
+            12,
+          );
+          const next = rotaryTravelToValue(this.controlStartVoltage, this.controlTravel, 12);
+          this.runtime.setVoltage(Math.round(next * 20) / 20);
+        } else {
+          const mappedStart = this.controlStartResistance - 0.5;
+          this.controlTravel = clampRotaryTravel(
+            mappedStart,
+            this.controlTravel + delta,
+            19.5,
+          );
+          const next = 0.5 + rotaryTravelToValue(mappedStart, this.controlTravel, 19.5);
+          this.runtime.setResistance(Math.round(next * 10) / 10);
+        }
         event.preventDefault();
         return;
       }
@@ -526,7 +546,7 @@ export class LabScene {
       : null;
     this.hoveredTerminal = nextHovered;
 
-    if (metadata?.instrumentControl === 'source-voltage') this.canvas.style.cursor = 'grab';
+    if (metadata?.instrumentControl === 'source-voltage' || metadata?.instrumentControl === 'resistor-resistance') this.canvas.style.cursor = 'grab';
     else if (metadata?.instrumentControl === 'source-output') this.canvas.style.cursor = 'pointer';
     else if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
     else if (metadata?.connectionId) this.canvas.style.cursor = 'pointer';
@@ -584,6 +604,11 @@ export class LabScene {
     return source?.kind === 'voltage-source' ? source.voltage : 0;
   }
 
+  private currentResistance(): number {
+    const resistor = this.runtime.circuit.snapshot().components.find((component) => component.kind === 'resistor');
+    return resistor?.kind === 'resistor' ? resistor.resistance : 3;
+  }
+
   private currentSourceEnabled(): boolean {
     const source = this.runtime.circuit.snapshot().components.find((component) => component.kind === 'voltage-source');
     return source?.kind === 'voltage-source' ? source.enabled : false;
@@ -602,10 +627,16 @@ export class LabScene {
   private readonly handleControlWheel = (event: WheelEvent): void => {
     const pick = this.scene.pick(this.scene.pointerX, this.scene.pointerY);
     const metadata = (pick?.pickedMesh?.metadata ?? null) as PickMetadata | null;
-    if (metadata?.instrumentControl !== 'source-voltage') return;
     const direction = event.deltaY < 0 ? 1 : -1;
-    this.runtime.setVoltage(this.currentSourceVoltage() + direction * 0.1);
-    event.preventDefault();
+    if (metadata?.instrumentControl === 'source-voltage') {
+      this.runtime.setVoltage(this.currentSourceVoltage() + direction * 0.1);
+      event.preventDefault();
+      return;
+    }
+    if (metadata?.instrumentControl === 'resistor-resistance') {
+      this.runtime.setResistance(this.currentResistance() + direction * 0.1);
+      event.preventDefault();
+    }
   };
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
