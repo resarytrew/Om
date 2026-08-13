@@ -239,6 +239,7 @@ function createPanelFrame(
 export class PowerSupplyVisual {
   private readonly display: DigitalDisplay;
   private readonly statusLed: Mesh;
+  private readonly powerSwitch: Mesh;
   private readonly knob: Mesh;
   private readonly knobCap: Mesh;
   private readonly knobPointer: Mesh;
@@ -355,14 +356,16 @@ export class PowerSupplyVisual {
       30,
     );
 
-    const powerSwitch = createBox(
+    this.powerSwitch = createBox(
       scene,
       'source-power-switch',
       new Vector3(position.x + 1.08, 0.5, frontZ - 0.08),
       new Vector3(0.32, 0.23, 0.085),
       theme.rubberBlack,
     );
-    powerSwitch.rotation.z = -0.06;
+    this.powerSwitch.rotation.z = -0.08;
+    this.powerSwitch.isPickable = true;
+    this.powerSwitch.metadata = { instrumentControl: 'source-output' };
 
     this.statusLed = MeshBuilder.CreateSphere(
       'source-status-led',
@@ -442,6 +445,11 @@ export class PowerSupplyVisual {
     this.display.setValue(value);
     const ratio = Math.min(1, Math.max(0, value / 12));
     this.targetKnob = -0.82 + ratio * 1.64;
+  }
+
+  setOutputEnabled(enabled: boolean): void {
+    this.powerSwitch.rotation.z = enabled ? -0.08 : 0.12;
+    this.powerSwitch.scaling.y = enabled ? 1 : 0.92;
   }
 
   setControlActive(active: boolean): void {

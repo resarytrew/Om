@@ -54,7 +54,7 @@ interface WireVisual {
 interface PickMetadata {
   readonly terminalId?: string;
   readonly connectionId?: string;
-  readonly instrumentControl?: 'source-voltage';
+  readonly instrumentControl?: 'source-voltage' | 'source-output';
 }
 
 export class LabScene {
@@ -475,6 +475,11 @@ export class LabScene {
       if (pointerInfo.type !== PointerEventTypes.POINTERTAP) return;
       this.canvas.focus({ preventScroll: true });
 
+      if (metadata?.instrumentControl === 'source-output') {
+        this.runtime.setSourceEnabled(!this.currentSourceEnabled());
+        return;
+      }
+
       if (metadata?.terminalId) {
         this.selectedConnection = null;
         this.runtime.chooseTerminal(terminalId(metadata.terminalId));
@@ -506,6 +511,7 @@ export class LabScene {
     this.hoveredTerminal = nextHovered;
 
     if (metadata?.instrumentControl === 'source-voltage') this.canvas.style.cursor = 'ns-resize';
+    else if (metadata?.instrumentControl === 'source-output') this.canvas.style.cursor = 'pointer';
     else if (metadata?.terminalId) this.canvas.style.cursor = 'crosshair';
     else if (metadata?.connectionId) this.canvas.style.cursor = 'pointer';
     else this.canvas.style.cursor = selectedTerminal ? 'crosshair' : 'default';
@@ -543,6 +549,11 @@ export class LabScene {
   private currentSourceVoltage(): number {
     const source = this.runtime.circuit.snapshot().components.find((component) => component.kind === 'voltage-source');
     return source?.kind === 'voltage-source' ? source.voltage : 0;
+  }
+
+  private currentSourceEnabled(): boolean {
+    const source = this.runtime.circuit.snapshot().components.find((component) => component.kind === 'voltage-source');
+    return source?.kind === 'voltage-source' ? source.enabled : false;
   }
 
   private finishInstrumentControl(pointerId?: number): void {
@@ -662,14 +673,16 @@ export class LabScene {
     const source = snapshot.components.find((component) => component.id === ids.source);
     const resistor = snapshot.components.find((component) => component.id === ids.resistor);
     const sourceVoltage = source?.kind === 'voltage-source' ? source.voltage : 0;
+    const sourceEnabled = source?.kind === 'voltage-source' ? source.enabled : false;
     const resistance = resistor?.kind === 'resistor' ? resistor.resistance : 0;
     const ammeterMeasurement = state.result.measurements[ids.ammeter];
     const voltmeterMeasurement = state.result.measurements[ids.voltmeter];
     const resistorMeasurement = state.result.measurements[ids.resistor];
 
     this.source.setVoltage(sourceVoltage);
+    this.source.setOutputEnabled(sourceEnabled);
     this.source.setActive(
-      state.result.status === 'closed',
+      sourceEnabled && state.result.status === 'closed',
       state.result.status === 'short-circuit' || Boolean(ammeterMeasurement?.overload),
     );
     this.resistor.setResistance(resistance);
