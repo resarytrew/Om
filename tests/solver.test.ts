@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { connectStandardCircuit, createOhmsLawRuntime, ids } from '../src/experiments/ohms-law/createOhmsLaw';
+import {
+  connectStandardCircuit,
+  createOhmsLawRuntime,
+  ids,
+  setOhmsLawInstrumentModel,
+} from '../src/experiments/ohms-law/createOhmsLaw';
 
 function closeSeriesCircuit(): ReturnType<typeof createOhmsLawRuntime> {
   const runtime = createOhmsLawRuntime();
@@ -21,15 +26,15 @@ describe('Ohm circuit solver', () => {
     const runtime = closeSeriesCircuit();
     const result = runtime.getState().result;
     expect(result.status).toBe('closed');
-    expect(result.current).toBeCloseTo(6 / 3.02, 5);
-    expect(result.measurements[ids.ammeter]?.current).toBeCloseTo(6 / 3.02, 5);
+    expect(result.current).toBeCloseTo(6 / 3, 8);
+    expect(result.measurements[ids.ammeter]?.current).toBeCloseTo(6 / 3, 8);
   });
 
   it('updates current when voltage and resistance change', () => {
     const runtime = closeSeriesCircuit();
     runtime.setVoltage(12);
     runtime.setResistance(6);
-    expect(runtime.getState().result.current).toBeCloseTo(12 / 6.02, 5);
+    expect(runtime.getState().result.current).toBeCloseTo(12 / 6, 8);
   });
 
   it('detects a direct short circuit path', () => {
@@ -47,6 +52,40 @@ describe('Ohm circuit solver', () => {
     const result = runtime.getState().result;
     expect(result.measurements[ids.voltmeter]?.voltage).toBeCloseTo(result.current * 3, 5);
     expect(result.diagnostics.some((item) => item.code === 'VOLTMETER_NOT_PARALLEL')).toBe(false);
+  });
+
+  it('models finite meter resistance in real-instrument mode', () => {
+    const runtime = createOhmsLawRuntime();
+    connectStandardCircuit(runtime);
+    runtime.setVoltage(12);
+    runtime.setResistance(3);
+    setOhmsLawInstrumentModel(runtime, 'real');
+
+    const parallelLoad = 1 / (1 / 3 + 1 / 1_000_000);
+    const expectedCurrent = 12 / (parallelLoad + 0.02);
+    const expectedVoltage = expectedCurrent * parallelLoad;
+    const result = runtime.getState().result;
+
+    expect(result.current).toBeCloseTo(expectedCurrent, 8);
+    expect(result.measurements[ids.ammeter]?.current).toBeCloseTo(expectedCurrent, 8);
+    expect(result.measurements[ids.voltmeter]?.voltage).toBeCloseTo(expectedVoltage, 8);
+    expect(result.measurements[ids.resistor]?.current).toBeCloseTo(expectedVoltage / 3, 8);
+
+    runtime.captureMeasurement();
+    const row = runtime.measurements.all()[0];
+    expect(row?.voltage).toBeCloseTo(expectedVoltage, 8);
+    expect(row?.current).toBeCloseTo(expectedCurrent, 8);
+  });
+
+  it('returns to exact school-model values after switching back to ideal instruments', () => {
+    const runtime = createOhmsLawRuntime();
+    connectStandardCircuit(runtime);
+    runtime.setVoltage(12);
+    runtime.setResistance(3);
+    setOhmsLawInstrumentModel(runtime, 'real');
+    setOhmsLawInstrumentModel(runtime, 'ideal');
+    expect(runtime.getState().result.current).toBeCloseTo(4, 10);
+    expect(runtime.getState().result.measurements[ids.voltmeter]?.voltage).toBeCloseTo(12, 10);
   });
 
   it('returns to zero current after a wire is removed', () => {

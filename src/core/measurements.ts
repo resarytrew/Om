@@ -9,18 +9,26 @@ export interface MeasurementRow {
   readonly power: number;
 }
 
+export interface MeasurementOverride {
+  readonly voltage?: number;
+  readonly current?: number;
+  readonly power?: number;
+}
+
 export class MeasurementStore {
   private rows: MeasurementRow[] = [];
   private nextId = 1;
 
-  record(result: SimulationResult, resistance: number): MeasurementRow {
+  record(result: SimulationResult, resistance: number, override: MeasurementOverride = {}): MeasurementRow {
+    const voltage = override.voltage ?? result.sourceVoltage;
+    const current = override.current ?? result.current;
     const row: MeasurementRow = {
       id: this.nextId++,
       timestamp: Date.now(),
-      voltage: result.sourceVoltage,
-      current: result.current,
+      voltage,
+      current,
       resistance,
-      power: result.power,
+      power: override.power ?? voltage * current,
     };
     this.rows = [...this.rows, row];
     return row;
