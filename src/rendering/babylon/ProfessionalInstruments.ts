@@ -542,7 +542,8 @@ export class AnalogMeterVisual {
     const faceMaterial = new StandardMaterial(`${spec.id}-dial-material`, scene);
     faceMaterial.diffuseTexture = faceTexture;
     faceMaterial.emissiveColor = new Color3(0.105, 0.103, 0.095);
-    faceMaterial.specularColor = new Color3(0.12, 0.12, 0.11);
+    faceMaterial.specularColor = Color3.Black();
+    faceMaterial.disableLighting = true;
     faceMaterial.backFaceCulling = false;
     face.material = faceMaterial;
 
@@ -720,7 +721,7 @@ export class AnalogMeterVisual {
 }
 
 export class ResistorModuleVisual {
-  private readonly display: DigitalDisplay;
+  private readonly valueTexture: DynamicTexture;
   private readonly ceramicMaterial: PBRMaterial;
 
   constructor(
@@ -802,16 +803,26 @@ export class ResistorModuleVisual {
       24,
     );
 
-    this.display = new DigitalDisplay(scene, theme, {
-      id: 'resistor-module',
-      width: 0.92,
-      height: 0.25,
-      unit: 'Ω',
-      decimals: 2,
-      position: new Vector3(position.x, 0.27, position.z - 0.625),
-      textColor: '#f0ce86',
-      fontSize: 74,
-    });
+    const valuePlate = MeshBuilder.CreatePlane(
+      'resistor-value-plate',
+      { width: 0.98, height: 0.27 },
+      scene,
+    );
+    valuePlate.position = new Vector3(position.x, 0.27, position.z - 0.63);
+    valuePlate.rotation.y = 0;
+    valuePlate.isPickable = false;
+    this.valueTexture = new DynamicTexture(
+      'resistor-value-texture',
+      { width: 640, height: 190 },
+      scene,
+      true,
+    );
+    const valueMaterial = new StandardMaterial('resistor-value-material', scene);
+    valueMaterial.diffuseTexture = this.valueTexture;
+    valueMaterial.emissiveColor = new Color3(0.08, 0.075, 0.06);
+    valueMaterial.disableLighting = true;
+    valueMaterial.backFaceCulling = false;
+    valuePlate.material = valueMaterial;
 
     createTextPlate(
       scene,
@@ -845,7 +856,22 @@ export class ResistorModuleVisual {
   }
 
   setResistance(value: number): void {
-    this.display.setValue(value);
+    const context = this.valueTexture.getContext();
+    context.clearRect(0, 0, 640, 190);
+    context.fillStyle = '#d6d0bd';
+    context.fillRect(0, 0, 640, 190);
+    context.strokeStyle = '#8d887b';
+    context.lineWidth = 8;
+    context.strokeRect(5, 5, 630, 180);
+    this.valueTexture.drawText(
+      `R = ${value.toFixed(2)} Ω`,
+      null,
+      126,
+      '600 78px ui-monospace, SFMono-Regular, Menlo, monospace',
+      '#2d302f',
+      null,
+      true,
+    );
   }
 
   setPower(power: number): void {

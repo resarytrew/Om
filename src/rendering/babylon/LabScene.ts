@@ -122,16 +122,16 @@ export class LabScene {
     const camera = new ArcRotateCamera(
       'camera',
       -Math.PI / 2,
-      1.325,
-      10.15,
-      new Vector3(-0.08, 0.82, 0.58),
+      1.385,
+      10.55,
+      new Vector3(-0.08, 0.88, 0.66),
       this.scene,
     );
-    camera.fov = 0.585;
-    camera.lowerRadiusLimit = 9.75;
-    camera.upperRadiusLimit = 10.8;
-    camera.lowerBetaLimit = 1.25;
-    camera.upperBetaLimit = 1.36;
+    camera.fov = 0.57;
+    camera.lowerRadiusLimit = 10.1;
+    camera.upperRadiusLimit = 11.1;
+    camera.lowerBetaLimit = 1.34;
+    camera.upperBetaLimit = 1.42;
     camera.lowerAlphaLimit = -1.67;
     camera.upperAlphaLimit = -1.47;
     camera.wheelPrecision = 180;
@@ -273,7 +273,7 @@ export class LabScene {
     this.source = new PowerSupplyVisual(
       this.scene,
       this.theme,
-      new Vector3(-3.12, 0, 0.4),
+      new Vector3(-2.75, 0, 0.4),
       ids.sourcePlus,
       ids.sourceMinus,
       registerTerminal,
@@ -282,7 +282,7 @@ export class LabScene {
     this.resistor = new ResistorModuleVisual(
       this.scene,
       this.theme,
-      new Vector3(-0.58, 0, 0.48),
+      new Vector3(-0.4, 0, 0.48),
       ids.resistorA,
       ids.resistorB,
       registerTerminal,
@@ -297,7 +297,7 @@ export class LabScene {
         unit: 'A',
         max: 4,
         decimals: 2,
-        position: new Vector3(2.62, 0, 0.34),
+        position: new Vector3(2.25, 0, 0.34),
         plus: ids.ammeterPlus,
         minus: ids.ammeterMinus,
       },
@@ -313,7 +313,7 @@ export class LabScene {
         unit: 'V',
         max: 12,
         decimals: 2,
-        position: new Vector3(0.68, 0, 2.04),
+        position: new Vector3(0.55, 0, 1.94),
         plus: ids.voltmeterPlus,
         minus: ids.voltmeterMinus,
         width: 1.96,
