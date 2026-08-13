@@ -38,6 +38,20 @@ export function normalizeInstrumentRotation(angle: number): number {
   return normalized;
 }
 
+export function smoothInstrumentRotation(
+  current: number,
+  target: number,
+  dt: number,
+  responsiveness = 11,
+): number {
+  const normalizedCurrent = normalizeInstrumentRotation(current);
+  const normalizedTarget = normalizeInstrumentRotation(target);
+  const delta = normalizeInstrumentRotation(normalizedTarget - normalizedCurrent);
+  if (Math.abs(delta) < 1e-4) return normalizedTarget;
+  const factor = 1 - Math.exp(-Math.max(0, dt) * Math.max(0.1, responsiveness));
+  return normalizeInstrumentRotation(normalizedCurrent + delta * factor);
+}
+
 export function instrumentHalfExtents(id: InstrumentId, rotationY = 0): BenchPoint {
   const half = HALF_FOOTPRINT[id];
   const angle = normalizeInstrumentRotation(rotationY);
