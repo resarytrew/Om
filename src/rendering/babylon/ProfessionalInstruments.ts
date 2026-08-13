@@ -51,7 +51,7 @@ class DigitalDisplay {
       scene,
     );
     plane.position = spec.position.add(new Vector3(0, 0, -0.012));
-    plane.rotation.y = Math.PI;
+    plane.rotation.y = 0;
     plane.isPickable = false;
 
     this.texture = new DynamicTexture(
@@ -76,7 +76,7 @@ class DigitalDisplay {
       scene,
     );
     glass.position = spec.position.add(new Vector3(0, 0, -0.022));
-    glass.rotation.y = Math.PI;
+    glass.rotation.y = 0;
     glass.material = theme.glass;
     glass.isPickable = false;
 
@@ -136,7 +136,7 @@ function createTextPlate(
 ): Mesh {
   const plane = MeshBuilder.CreatePlane(id, { width, height }, scene);
   plane.position = position;
-  plane.rotation.y = Math.PI;
+  plane.rotation.y = 0;
   plane.isPickable = false;
 
   const texture = new DynamicTexture(`${id}-texture`, { width: 900, height: 260 }, scene, true);
@@ -225,8 +225,8 @@ function createPanelFrame(
   height: number,
   frontZ: number,
 ): void {
-  const strip = 0.07;
-  const depth = 0.055;
+  const strip = 0.045;
+  const depth = 0.042;
   createBox(scene, `${prefix}-frame-top`, new Vector3(center.x, center.y + height / 2, frontZ), new Vector3(width, strip, depth), theme.meterBezel);
   createBox(scene, `${prefix}-frame-bottom`, new Vector3(center.x, center.y - height / 2, frontZ), new Vector3(width, strip, depth), theme.meterBezel);
   createBox(scene, `${prefix}-frame-left`, new Vector3(center.x - width / 2, center.y, frontZ), new Vector3(strip, height, depth), theme.meterBezel);
@@ -475,7 +475,6 @@ interface AnalogMeterSpec {
 }
 
 export class AnalogMeterVisual {
-  private readonly display: DigitalDisplay;
   private readonly needlePivot: TransformNode;
   private readonly warningLed: Mesh;
   private targetAngle = 0;
@@ -537,12 +536,13 @@ export class AnalogMeterVisual {
       scene,
     );
     face.position = new Vector3(p.x, 1.17, frontZ - 0.123);
-    face.rotation.y = Math.PI;
+    face.rotation.y = 0;
     face.isPickable = false;
     const faceTexture = this.createDialTexture(scene, spec);
     const faceMaterial = new StandardMaterial(`${spec.id}-dial-material`, scene);
     faceMaterial.diffuseTexture = faceTexture;
-    faceMaterial.emissiveColor = new Color3(0.16, 0.16, 0.145);
+    faceMaterial.emissiveColor = new Color3(0.105, 0.103, 0.095);
+    faceMaterial.specularColor = new Color3(0.12, 0.12, 0.11);
     faceMaterial.backFaceCulling = false;
     face.material = faceMaterial;
 
@@ -574,7 +574,7 @@ export class AnalogMeterVisual {
       scene,
     );
     glass.position = new Vector3(p.x, 1.17, frontZ - 0.168);
-    glass.rotation.y = Math.PI;
+    glass.rotation.y = 0;
     glass.material = theme.glass;
     glass.isPickable = false;
 
@@ -584,30 +584,19 @@ export class AnalogMeterVisual {
       new Vector3(p.x, 1.71, frontZ - 0.13),
       1.45,
       0.18,
-      [`LAB ${spec.label.toUpperCase()}`],
+      [`DC ${spec.label.toUpperCase()}`],
       '#20282c',
       'transparent',
-      34,
+      38,
       28,
     );
-
-    this.display = new DigitalDisplay(scene, theme, {
-      id: `${spec.id}-digital`,
-      width: 0.9,
-      height: 0.24,
-      unit: spec.unit,
-      decimals: spec.decimals,
-      position: new Vector3(p.x, 0.44, frontZ - 0.13),
-      textColor: '#72e5f7',
-      fontSize: 72,
-    });
 
     this.warningLed = MeshBuilder.CreateSphere(
       `${spec.id}-warning-led`,
       { diameter: 0.1, segments: 20 },
       scene,
     );
-    this.warningLed.position = new Vector3(p.x + 0.7, 0.44, frontZ - 0.18);
+    this.warningLed.position = new Vector3(p.x + 0.72, 0.37, frontZ - 0.18);
     this.warningLed.material = theme.ledGreen.clone(`${spec.id}-led-material`);
     this.warningLed.isPickable = false;
 
@@ -637,8 +626,6 @@ export class AnalogMeterVisual {
     const safe = Number.isFinite(value) ? Math.max(0, value) : this.max;
     const ratio = Math.min(1, safe / this.max);
     this.targetAngle = 1.03 - ratio * 2.06;
-    this.display.setValue(overload ? Number.POSITIVE_INFINITY : value);
-
     const material = this.warningLed.material as StandardMaterial | null;
     if (material) {
       material.diffuseColor = overload
@@ -667,10 +654,6 @@ export class AnalogMeterVisual {
     const ctx = texture.getContext();
     ctx.fillStyle = '#f4f1e8';
     ctx.fillRect(0, 0, 1200, 660);
-
-    ctx.strokeStyle = '#c9c7bf';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(18, 18, 1164, 624);
 
     const centerX = 600;
     const centerY = 535;

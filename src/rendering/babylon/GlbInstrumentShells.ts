@@ -78,7 +78,7 @@ export function installOhmGlbShells(scene: Scene, shadow: ShadowGenerator): void
     },
     {
       file: 'analog-meter-shell.glb',
-      position: new Vector3(0.86, 0.96, 1.93),
+      position: new Vector3(0.68, 0.96, 2.04),
       fallbackNames: ['voltmeter-shell'],
     },
     {
