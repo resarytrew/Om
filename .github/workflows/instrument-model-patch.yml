@@ -28,6 +28,10 @@ jobs:
         run: node scripts/patch_instrument_models.mjs || true
       - name: Apply UI and test patch
         run: node scripts/patch_instrument_models_ui_tests.mjs
+      - name: Remove unused terminal helper
+        run: |
+          sed -i "/const ammeter = snapshot.components.find((component) => component.kind === 'ammeter');/d" src/ui/renderApp.ts
+          sed -i "/const ammeterValue = /d" src/ui/renderApp.ts
       - name: Install dependencies
         run: npm ci
       - name: Run TypeScript tests
