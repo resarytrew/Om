@@ -64,8 +64,9 @@ class DigitalDisplay {
 
     const material = new StandardMaterial(`${spec.id}-display-material`, scene);
     material.diffuseTexture = this.texture;
-    material.emissiveColor = new Color3(0.055, 0.205, 0.22);
-    material.specularColor = new Color3(0.2, 0.35, 0.38);
+    material.emissiveTexture = this.texture;
+    material.emissiveColor = Color3.White();
+    material.specularColor = Color3.Black();
     material.disableLighting = true;
     material.backFaceCulling = false;
     plane.material = material;
@@ -165,8 +166,9 @@ function createTextPlate(
 
   const material = new StandardMaterial(`${id}-material`, scene);
   material.diffuseTexture = texture;
+  material.emissiveTexture = texture;
   material.opacityTexture = texture;
-  material.emissiveColor = new Color3(0.11, 0.115, 0.12);
+  material.emissiveColor = Color3.White();
   material.disableLighting = true;
   material.backFaceCulling = false;
   plane.material = material;
@@ -541,7 +543,8 @@ export class AnalogMeterVisual {
     const faceTexture = this.createDialTexture(scene, spec);
     const faceMaterial = new StandardMaterial(`${spec.id}-dial-material`, scene);
     faceMaterial.diffuseTexture = faceTexture;
-    faceMaterial.emissiveColor = new Color3(0.105, 0.103, 0.095);
+    faceMaterial.emissiveTexture = faceTexture;
+    faceMaterial.emissiveColor = Color3.White();
     faceMaterial.specularColor = Color3.Black();
     faceMaterial.disableLighting = true;
     faceMaterial.backFaceCulling = false;
@@ -819,7 +822,9 @@ export class ResistorModuleVisual {
     );
     const valueMaterial = new StandardMaterial('resistor-value-material', scene);
     valueMaterial.diffuseTexture = this.valueTexture;
-    valueMaterial.emissiveColor = new Color3(0.08, 0.075, 0.06);
+    valueMaterial.emissiveTexture = this.valueTexture;
+    valueMaterial.emissiveColor = Color3.White();
+    valueMaterial.specularColor = Color3.Black();
     valueMaterial.disableLighting = true;
     valueMaterial.backFaceCulling = false;
     valuePlate.material = valueMaterial;
