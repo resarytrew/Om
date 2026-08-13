@@ -33,7 +33,7 @@ replace(
     camera.pinchPrecision = 72;
     camera.inertia = 0.82;
     camera.panningSensibility = 95;
-    camera.attachControl(this.canvas, true, true, 2);`,
+    camera.attachControl(this.canvas, true, true);`,
 );
 
 replace(
@@ -47,12 +47,12 @@ replace(
 replace(
   'src/ui/renderApp.ts',
   'Клемма → клемма: создать провод · Провод: выбрать, Delete удалить · Esc отмена.',
-  'Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl/ПКМ + drag: сдвиг · Клик по клемме: провод.',
+  'Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl + drag: сдвиг · Клик по клемме: провод.',
 );
 
 // The same hint appears once in the live state update; replace the remaining copy.
 replace(
   'src/ui/renderApp.ts',
   'Клемма → клемма: создать провод · Провод: выбрать, Delete удалить · Esc отмена.',
-  'Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl/ПКМ + drag: сдвиг · Клик по клемме: провод.',
+  'Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl + drag: сдвиг · Клик по клемме: провод.',
 );
