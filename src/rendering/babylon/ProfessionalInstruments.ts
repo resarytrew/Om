@@ -47,6 +47,15 @@ class DigitalDisplay {
     bezel.material = theme.rubberBlack;
     bezel.isPickable = false;
 
+    const trim = MeshBuilder.CreateBox(
+      `${spec.id}-display-trim`,
+      { width: spec.width * 1.045, height: spec.height * 1.13, depth: 0.026 },
+      scene,
+    );
+    trim.position = spec.position.add(new Vector3(0, 0, -0.002));
+    trim.material = theme.darkMetal;
+    trim.isPickable = false;
+
     const plane = MeshBuilder.CreatePlane(
       `${spec.id}-display-plane`,
       { width: spec.width, height: spec.height },
@@ -78,10 +87,20 @@ class DigitalDisplay {
       { width: spec.width * 1.035, height: spec.height * 1.08 },
       scene,
     );
-    glass.position = spec.position.add(new Vector3(0, 0, -0.022));
+    glass.position = spec.position.add(new Vector3(0, 0, -0.025));
     glass.rotation.y = 0;
     glass.material = theme.glass;
     glass.isPickable = false;
+
+    const reflection = createBox(
+      scene,
+      `${spec.id}-display-reflection`,
+      spec.position.add(new Vector3(-spec.width * 0.19, spec.height * 0.34, -0.031)),
+      new Vector3(spec.width * 0.42, 0.008, 0.006),
+      theme.chrome,
+    );
+    reflection.scaling.x = 0.82;
+    reflection.isPickable = false;
 
     this.setValue(0);
   }
@@ -216,8 +235,18 @@ function createScrew(
   );
   screw.position = position;
   screw.rotation.x = Math.PI / 2;
-  screw.material = theme.metal;
+  screw.material = theme.chrome;
   screw.isPickable = false;
+
+  const slot = createBox(
+    scene,
+    `${name}-slot`,
+    position.add(new Vector3(0, 0, -0.021)),
+    new Vector3(0.055, 0.012, 0.012),
+    theme.rubberBlack,
+  );
+  slot.rotation.z = name.length % 2 === 0 ? 0.18 : -0.22;
+  slot.isPickable = false;
 }
 
 function createPanelFrame(
@@ -235,6 +264,45 @@ function createPanelFrame(
   createBox(scene, `${prefix}-frame-bottom`, new Vector3(center.x, center.y - height / 2, frontZ), new Vector3(width, strip, depth), theme.meterBezel);
   createBox(scene, `${prefix}-frame-left`, new Vector3(center.x - width / 2, center.y, frontZ), new Vector3(strip, height, depth), theme.meterBezel);
   createBox(scene, `${prefix}-frame-right`, new Vector3(center.x + width / 2, center.y, frontZ), new Vector3(strip, height, depth), theme.meterBezel);
+}
+
+function createFaceTrim(
+  scene: Scene,
+  theme: InstrumentTheme,
+  prefix: string,
+  center: Vector3,
+  width: number,
+  height: number,
+  frontZ: number,
+): void {
+  const strip = 0.018;
+  const depth = 0.018;
+  createBox(scene, `${prefix}-trim-top`, new Vector3(center.x, center.y + height / 2, frontZ), new Vector3(width, strip, depth), theme.chrome);
+  createBox(scene, `${prefix}-trim-bottom`, new Vector3(center.x, center.y - height / 2, frontZ), new Vector3(width, strip, depth), theme.chrome);
+  createBox(scene, `${prefix}-trim-left`, new Vector3(center.x - width / 2, center.y, frontZ), new Vector3(strip, height, depth), theme.chrome);
+  createBox(scene, `${prefix}-trim-right`, new Vector3(center.x + width / 2, center.y, frontZ), new Vector3(strip, height, depth), theme.chrome);
+}
+
+function createKnobGrip(
+  scene: Scene,
+  theme: InstrumentTheme,
+  pivot: TransformNode,
+  radius: number,
+  z: number,
+): void {
+  for (let index = 0; index < 20; index += 1) {
+    const angle = (index / 20) * Math.PI * 2;
+    const rib = createBox(
+      scene,
+      `source-knob-grip-${index}`,
+      new Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, z),
+      new Vector3(0.022, 0.075, 0.026),
+      theme.darkMetal,
+    );
+    rib.rotation.z = angle;
+    rib.parent = pivot;
+    rib.isPickable = false;
+  }
 }
 
 export class PowerSupplyVisual {
@@ -280,6 +348,15 @@ export class PowerSupplyVisual {
       height * 0.9,
       frontZ - 0.047,
     );
+    createFaceTrim(
+      scene,
+      theme,
+      'source-face',
+      new Vector3(position.x, 0.94, 0),
+      width * 0.905,
+      height * 0.855,
+      frontZ - 0.094,
+    );
 
     createTextPlate(
       scene,
@@ -312,8 +389,18 @@ export class PowerSupplyVisual {
     );
     knobRing.position = new Vector3(position.x + 0.77, 1.1, frontZ - 0.105);
     knobRing.rotation.x = Math.PI / 2;
-    knobRing.material = theme.meterBezel;
+    knobRing.material = theme.chrome;
     knobRing.isPickable = false;
+
+    const knobInnerRing = MeshBuilder.CreateTorus(
+      'source-knob-inner-ring',
+      { diameter: 0.61, thickness: 0.025, tessellation: 56 },
+      scene,
+    );
+    knobInnerRing.position = new Vector3(position.x + 0.77, 1.1, frontZ - 0.126);
+    knobInnerRing.rotation.x = Math.PI / 2;
+    knobInnerRing.material = theme.darkMetal;
+    knobInnerRing.isPickable = false;
 
     const knobCenter = new Vector3(position.x + 0.77, 1.1, frontZ - 0.17);
     this.knobPivot = new TransformNode('source-voltage-knob-pivot', scene);
@@ -327,7 +414,7 @@ export class PowerSupplyVisual {
     this.knob.position = Vector3.Zero();
     this.knob.rotation.x = Math.PI / 2;
     this.knob.parent = this.knobPivot;
-    this.knob.material = theme.darkMetal;
+    this.knob.material = theme.knobPlastic;
     this.knob.isPickable = true;
     this.knob.metadata = { instrumentControl: 'source-voltage' };
 
@@ -339,16 +426,29 @@ export class PowerSupplyVisual {
     this.knobCap.position = new Vector3(0, 0, -0.018);
     this.knobCap.rotation.x = Math.PI / 2;
     this.knobCap.parent = this.knobPivot;
-    this.knobCap.material = theme.rubberBlack;
+    this.knobCap.material = theme.knobPlastic;
     this.knobCap.isPickable = true;
     this.knobCap.metadata = { instrumentControl: 'source-voltage' };
+
+    createKnobGrip(scene, theme, this.knobPivot, 0.255, -0.16);
+
+    const knobBoss = MeshBuilder.CreateTorus(
+      'source-knob-boss',
+      { diameter: 0.34, thickness: 0.018, tessellation: 48 },
+      scene,
+    );
+    knobBoss.rotation.x = Math.PI / 2;
+    knobBoss.position = new Vector3(0, 0, -0.176);
+    knobBoss.parent = this.knobPivot;
+    knobBoss.material = theme.chrome;
+    knobBoss.isPickable = false;
 
     this.knobPointer = createBox(
       scene,
       'source-knob-index',
       new Vector3(0, 0.245, -0.165),
       new Vector3(0.035, 0.14, 0.022),
-      theme.metal,
+      theme.chrome,
     );
     this.knobPointer.parent = this.knobPivot;
 
@@ -370,7 +470,7 @@ export class PowerSupplyVisual {
       'source-power-switch',
       new Vector3(position.x + 1.08, 0.5, frontZ - 0.08),
       new Vector3(0.32, 0.23, 0.085),
-      theme.rubberBlack,
+      theme.knobPlastic,
     );
     this.powerSwitch.rotation.z = -0.08;
     this.powerSwitch.isPickable = true;
@@ -384,6 +484,16 @@ export class PowerSupplyVisual {
     this.statusLed.position = new Vector3(position.x + 0.62, 0.5, frontZ - 0.14);
     this.statusLed.material = theme.ledGreen;
     this.statusLed.isPickable = false;
+
+    const ledBezel = MeshBuilder.CreateTorus(
+      'source-status-led-bezel',
+      { diameter: 0.16, thickness: 0.018, tessellation: 36 },
+      scene,
+    );
+    ledBezel.position = new Vector3(position.x + 0.62, 0.5, frontZ - 0.118);
+    ledBezel.rotation.x = Math.PI / 2;
+    ledBezel.material = theme.chrome;
+    ledBezel.isPickable = false;
 
     createTextPlate(
       scene,
@@ -543,6 +653,15 @@ export class AnalogMeterVisual {
       height * 0.92,
       frontZ - 0.048,
     );
+    createFaceTrim(
+      scene,
+      theme,
+      `${spec.id}-face`,
+      new Vector3(p.x, 0.96, 0),
+      width * 0.915,
+      height * 0.875,
+      frontZ - 0.092,
+    );
 
     const bezel = createBox(
       scene,
@@ -552,6 +671,16 @@ export class AnalogMeterVisual {
       theme.meterBezel,
     );
     bezel.isPickable = false;
+
+    createFaceTrim(
+      scene,
+      theme,
+      `${spec.id}-dial`,
+      new Vector3(p.x, 1.17, 0),
+      width * 0.79,
+      1.0,
+      frontZ - 0.122,
+    );
 
     const faceWidth = width * 0.78;
     const faceHeight = 0.96;
@@ -592,8 +721,18 @@ export class AnalogMeterVisual {
     );
     hub.position = this.needlePivot.position.add(new Vector3(0, 0, -0.014));
     hub.rotation.x = Math.PI / 2;
-    hub.material = theme.darkMetal;
+    hub.material = theme.chrome;
     hub.isPickable = false;
+
+    const hubCap = MeshBuilder.CreateSphere(
+      `${spec.id}-needle-hub-cap`,
+      { diameter: 0.11, segments: 20 },
+      scene,
+    );
+    hubCap.position = this.needlePivot.position.add(new Vector3(0, 0, -0.06));
+    hubCap.scaling.z = 0.38;
+    hubCap.material = theme.darkMetal;
+    hubCap.isPickable = false;
 
     const glass = MeshBuilder.CreatePlane(
       `${spec.id}-dial-glass`,
@@ -626,6 +765,24 @@ export class AnalogMeterVisual {
     this.warningLed.position = new Vector3(p.x + 0.72, 0.37, frontZ - 0.18);
     this.warningLed.material = theme.ledGreen.clone(`${spec.id}-led-material`);
     this.warningLed.isPickable = false;
+
+    const zeroAdjust = MeshBuilder.CreateCylinder(
+      `${spec.id}-zero-adjust`,
+      { height: 0.055, diameter: 0.19, tessellation: 32 },
+      scene,
+    );
+    zeroAdjust.position = new Vector3(p.x, 0.35, frontZ - 0.16);
+    zeroAdjust.rotation.x = Math.PI / 2;
+    zeroAdjust.material = theme.darkMetal;
+    zeroAdjust.isPickable = false;
+    const zeroSlot = createBox(
+      scene,
+      `${spec.id}-zero-adjust-slot`,
+      new Vector3(p.x, 0.35, frontZ - 0.193),
+      new Vector3(0.105, 0.014, 0.014),
+      theme.chrome,
+    );
+    zeroSlot.rotation.z = -0.08;
 
     registerTerminal(
       spec.plus,
@@ -774,6 +931,10 @@ export class ResistorModuleVisual {
       new Vector3(2.42, 0.13, 0.9),
       theme.meterPanel,
     );
+    createBox(scene, 'resistor-edge-front', new Vector3(position.x, 0.43, position.z - 0.44), new Vector3(2.5, 0.045, 0.04), theme.chrome);
+    createBox(scene, 'resistor-edge-back', new Vector3(position.x, 0.43, position.z + 0.5), new Vector3(2.5, 0.045, 0.04), theme.chrome);
+    createBox(scene, 'resistor-edge-left', new Vector3(position.x - 1.23, 0.43, position.z + 0.03), new Vector3(0.04, 0.045, 0.9), theme.chrome);
+    createBox(scene, 'resistor-edge-right', new Vector3(position.x + 1.23, 0.43, position.z + 0.03), new Vector3(0.04, 0.045, 0.9), theme.chrome);
 
     for (const x of [-0.9, 0.9]) {
       const insulator = MeshBuilder.CreateCylinder(
@@ -823,7 +984,7 @@ export class ResistorModuleVisual {
       cap.position = new Vector3(offset, 0, 0);
       cap.rotation.z = Math.PI / 2;
       cap.parent = this.resistorPivot;
-      cap.material = theme.metal;
+      cap.material = theme.copper;
       cap.isPickable = true;
       cap.metadata = { instrumentControl: 'resistor-resistance' };
 
@@ -834,8 +995,42 @@ export class ResistorModuleVisual {
         new Vector3(0.14, 0.42, 0.28),
         theme.darkMetal,
       );
+      clip.material = theme.darkMetal;
       clip.isPickable = false;
+
+      const collar = MeshBuilder.CreateTorus(
+        `resistor-brass-collar-${offset}`,
+        { diameter: 0.5, thickness: 0.04, tessellation: 44 },
+        scene,
+      );
+      collar.position = new Vector3(offset * 0.82, 0, 0);
+      collar.rotation.z = Math.PI / 2;
+      collar.parent = this.resistorPivot;
+      collar.material = theme.brass;
+      collar.isPickable = false;
     }
+
+    for (const x of [-0.48, 0, 0.48]) {
+      const ceramicBand = MeshBuilder.CreateTorus(
+        `resistor-ceramic-band-${x}`,
+        { diameter: 0.447, thickness: 0.012, tessellation: 44 },
+        scene,
+      );
+      ceramicBand.position = new Vector3(x, 0, 0);
+      ceramicBand.rotation.z = Math.PI / 2;
+      ceramicBand.parent = this.resistorPivot;
+      ceramicBand.material = theme.labelMetal;
+      ceramicBand.isPickable = false;
+    }
+
+    const valueBacking = createBox(
+      scene,
+      'resistor-value-backing',
+      new Vector3(position.x, 0.27, position.z - 0.605),
+      new Vector3(1.08, 0.34, 0.045),
+      theme.labelMetal,
+    );
+    valueBacking.isPickable = false;
 
     const valuePlate = MeshBuilder.CreatePlane(
       'resistor-value-plate',

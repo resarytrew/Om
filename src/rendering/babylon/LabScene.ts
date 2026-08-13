@@ -144,8 +144,9 @@ export class LabScene {
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(0.018, 0.025, 0.03, 1);
     this.scene.ambientColor = new Color3(0.035, 0.04, 0.045);
-    this.scene.imageProcessingConfiguration.contrast = 1.1;
-    this.scene.imageProcessingConfiguration.exposure = 1.08;
+    this.scene.imageProcessingConfiguration.contrast = 1.16;
+    this.scene.imageProcessingConfiguration.exposure = 1.03;
+    this.scene.imageProcessingConfiguration.toneMappingEnabled = true;
     this.theme = createInstrumentTheme(this.scene);
     this.scene.environmentTexture = CubeTexture.CreateFromPrefilteredData(
       `${import.meta.env.BASE_URL}models/ohm/studio.env`,
@@ -232,8 +233,8 @@ export class LabScene {
     pipeline.fxaaEnabled = true;
     pipeline.samples = 2;
     pipeline.bloomEnabled = true;
-    pipeline.bloomThreshold = 0.96;
-    pipeline.bloomWeight = 0.055;
+    pipeline.bloomThreshold = 0.9;
+    pipeline.bloomWeight = 0.07;
     pipeline.bloomKernel = 48;
     pipeline.bloomScale = 0.5;
 
@@ -252,16 +253,18 @@ export class LabScene {
       this.scene,
     );
     key.position = new Vector3(-4.8, 7.2, -5.4);
-    key.intensity = 1.48;
-    key.diffuse = new Color3(1.0, 0.91, 0.8);
+    key.intensity = 1.62;
+    key.diffuse = new Color3(1.0, 0.9, 0.79);
+    key.specular = new Color3(1.0, 0.93, 0.84);
 
     const fill = new PointLight(
       'softbox-fill',
       new Vector3(4.4, 3.8, -3.6),
       this.scene,
     );
-    fill.intensity = 7.8;
-    fill.diffuse = new Color3(0.67, 0.82, 0.95);
+    fill.intensity = 6.4;
+    fill.diffuse = new Color3(0.58, 0.79, 0.98);
+    fill.specular = new Color3(0.64, 0.84, 1.0);
 
     const frontFill = new PointLight(
       'front-soft-fill',
@@ -276,8 +279,9 @@ export class LabScene {
       new Vector3(-0.8, 4.8, 3.15),
       this.scene,
     );
-    rim.intensity = 6.6;
-    rim.diffuse = new Color3(0.5, 0.7, 0.86);
+    rim.intensity = 7.2;
+    rim.diffuse = new Color3(0.38, 0.68, 0.96);
+    rim.specular = new Color3(0.48, 0.76, 1.0);
 
     const shadow = new ShadowGenerator(2048, key);
     shadow.useBlurExponentialShadowMap = true;
@@ -335,6 +339,26 @@ export class LabScene {
     mat.material = this.theme.benchMat;
     mat.receiveShadows = true;
     mat.isPickable = false;
+
+    const matFrontTrim = MeshBuilder.CreateBox(
+      'bench-mat-front-trim',
+      { width: 9.94, height: 0.035, depth: 0.035 },
+      this.scene,
+    );
+    matFrontTrim.position = new Vector3(0, 0.052, -1.835);
+    matFrontTrim.material = this.theme.chrome;
+    matFrontTrim.isPickable = false;
+
+    for (const x of [-4.97, 4.97]) {
+      const sideTrim = MeshBuilder.CreateBox(
+        `bench-mat-side-trim-${x}`,
+        { width: 0.035, height: 0.035, depth: 4.63 },
+        this.scene,
+      );
+      sideTrim.position = new Vector3(x, 0.052, 0.48);
+      sideTrim.material = this.theme.chrome;
+      sideTrim.isPickable = false;
+    }
 
     const frontLip = MeshBuilder.CreateBox(
       'bench-front-lip',
@@ -481,8 +505,22 @@ export class LabScene {
     );
     metalBase.position = position.add(new Vector3(0, 0, 0.07));
     metalBase.rotation.x = Math.PI / 2;
-    metalBase.material = this.theme.metal;
+    metalBase.material = this.theme.darkMetal;
     metalBase.isPickable = false;
+
+    const insulator = MeshBuilder.CreateCylinder(
+      `terminal-insulator:${id}`,
+      { height: 0.115, diameter: 0.39, tessellation: 40 },
+      this.scene,
+    );
+    insulator.position = position.add(new Vector3(0, 0, 0.005));
+    insulator.rotation.x = Math.PI / 2;
+    insulator.material = polarity === 'positive'
+      ? this.theme.terminalRed
+      : polarity === 'negative'
+        ? this.theme.terminalBlack
+        : this.theme.terminalNeutral;
+    insulator.isPickable = false;
 
     const ring = MeshBuilder.CreateTorus(
       `terminal-ring:${id}`,
@@ -491,8 +529,19 @@ export class LabScene {
     );
     ring.position = position.add(new Vector3(0, 0, -0.025));
     ring.rotation.x = Math.PI / 2;
-    ring.material = this.theme.metal;
+    ring.material = this.theme.chrome;
     ring.isPickable = false;
+
+    const nut = MeshBuilder.CreateCylinder(
+      `terminal-nut:${id}`,
+      { height: 0.052, diameter: 0.285, tessellation: 6 },
+      this.scene,
+    );
+    nut.position = position.add(new Vector3(0, 0, -0.145));
+    nut.rotation.x = Math.PI / 2;
+    nut.rotation.y = Math.PI / 6;
+    nut.material = this.theme.chrome;
+    nut.isPickable = false;
 
     const cap = MeshBuilder.CreateCylinder(
       `terminal:${id}`,
@@ -521,7 +570,7 @@ export class LabScene {
     );
     contact.position = position.add(new Vector3(0, 0, -0.215));
     contact.rotation.x = Math.PI / 2;
-    contact.material = this.theme.metal;
+    contact.material = this.theme.chrome;
     contact.isPickable = false;
 
     this.terminalMeshes.set(id, { mesh: cap, material, ring });

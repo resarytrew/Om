@@ -1,4 +1,6 @@
 import {
+  Color3,
+  PBRMaterial,
   type AbstractMesh,
   Scene,
   SceneLoader,
@@ -28,6 +30,31 @@ function disableFallback(
   }
 }
 
+function tuneShellMaterial(material: PBRMaterial, instrumentId: string): void {
+  material.environmentIntensity = 1.08;
+  material.clearCoat.isEnabled = true;
+  material.clearCoat.intensity = 0.16;
+  material.clearCoat.roughness = 0.34;
+
+  if (instrumentId === 'source') {
+    material.albedoColor = new Color3(0.18, 0.195, 0.207);
+    material.metallic = 0.34;
+    material.roughness = 0.31;
+    return;
+  }
+
+  if (instrumentId === 'resistor') {
+    material.albedoColor = new Color3(0.12, 0.132, 0.142);
+    material.metallic = 0.26;
+    material.roughness = 0.37;
+    return;
+  }
+
+  material.albedoColor = new Color3(0.19, 0.205, 0.215);
+  material.metallic = 0.38;
+  material.roughness = 0.29;
+}
+
 function prepareImportedMeshes(
   meshes: readonly AbstractMesh[],
   position: Vector3,
@@ -44,6 +71,7 @@ function prepareImportedMeshes(
   for (const mesh of meshes) {
     mesh.isPickable = true;
     mesh.metadata = { ...(mesh.metadata ?? {}), instrumentId };
+    if (mesh.material instanceof PBRMaterial) tuneShellMaterial(mesh.material, instrumentId);
     shadow.addShadowCaster(mesh, true);
   }
 }
@@ -67,8 +95,8 @@ async function installShell(
 /**
  * Replace only the static outer housings with authored GLB meshes.
  * Dynamic faces, needles, displays, terminals and circuit interaction remain
- * Babylon-controlled. Each replacement is fail-safe: a Pass 4 primitive shell
- * is disabled only after its corresponding GLB has loaded successfully.
+ * Babylon-controlled. Imported shells receive a controlled studio PBR finish
+ * so authored geometry and procedural faces read as one manufactured object.
  */
 export function installOhmGlbShells(
   scene: Scene,
@@ -107,7 +135,7 @@ export function installOhmGlbShells(
 
   for (const spec of specs) {
     void installShell(scene, shadow, rootUrl, spec, parentFor?.(spec.instrumentId)).catch((error: unknown) => {
-      console.warn(`Keeping Pass 4 fallback for ${spec.file}`, error);
+      console.warn(`Keeping procedural fallback for ${spec.file}`, error);
     });
   }
 }
