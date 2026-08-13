@@ -64,7 +64,7 @@ function microNormal(
 ): DynamicTexture {
   const size = 128;
   const texture = new DynamicTexture(name, { width: size, height: size }, scene, false);
-  const context = texture.getContext();
+  const context = texture.getContext() as unknown as CanvasRenderingContext2D;
   const image = context.createImageData(size, size);
 
   const hash = (x: number, y: number): number => {
