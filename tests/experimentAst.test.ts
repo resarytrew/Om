@@ -33,7 +33,7 @@ describe('Experiment AST', () => {
     const rows = runtime.measurements.all();
     expect(rows).toHaveLength(3);
     expect(rows.map((row) => row.voltage)).toEqual([2, 4, 6]);
-    expect(rows[2]?.current).toBeCloseTo(6 / 3.02, 8);
+    expect(rows[2]?.current).toBeCloseTo(2, 8);
     expect(runtime.getState().result.status).toBe('closed');
   });
 

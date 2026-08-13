@@ -8,7 +8,7 @@ const events: PythonLabEvent[] = [
   { type: 'clear-measurements' },
   { type: 'set-resistance', value: 3 },
   { type: 'set-voltage', value: 6 },
-  { type: 'record', voltage: 6, resistance: 3, current: 6 / 3.02, power: 36 / 3.02 },
+  { type: 'record', voltage: 6, resistance: 3, current: 2, power: 12 },
   { type: 'plot', x: 'U', y: 'I' },
 ];
 
@@ -18,7 +18,7 @@ describe('Python event replay', () => {
     await replayPythonEvents(runtime, events);
 
     expect(runtime.getState().result.status).toBe('closed');
-    expect(runtime.getState().result.current).toBeCloseTo(6 / 3.02, 8);
+    expect(runtime.getState().result.current).toBeCloseTo(2, 8);
     expect(runtime.measurements.all()).toHaveLength(1);
     expect(runtime.measurements.all()[0]?.voltage).toBe(6);
     expect(runtime.measurements.all()[0]?.resistance).toBe(3);

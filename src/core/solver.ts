@@ -191,18 +191,44 @@ export function solveCircuit(snapshot: CircuitSnapshot): SimulationResult {
     });
   }
 
+  const nodes = wireNodes(snapshot);
+  const voltmeters = snapshot.components.filter((component): component is VoltmeterComponent => component.kind === 'voltmeter');
+  const targetResistor = resistors[0];
+  const parallelVoltmeters = targetResistor
+    ? voltmeters.filter((voltmeter) => isAcross(voltmeter, targetResistor, nodes))
+    : [];
+
+  // The first resistor is the measured load in the Ohm-law experiment. A real
+  // voltmeter is a finite resistance connected in parallel with that load.
+  // An ideal voltmeter has R = Infinity and therefore contributes zero conductance.
+  const targetConductance = targetResistor
+    ? 1 / Math.max(targetResistor.resistance, 1e-9) + parallelVoltmeters.reduce((sum, voltmeter) => {
+        if (!Number.isFinite(voltmeter.internalResistance)) return sum;
+        return sum + 1 / Math.max(voltmeter.internalResistance, 1e-9);
+      }, 0)
+    : 0;
+  const targetEquivalentResistance = targetResistor && targetConductance > 0
+    ? 1 / targetConductance
+    : 0;
+  const remainingSeriesResistance = resistors
+    .slice(1)
+    .reduce((sum, resistor) => sum + Math.max(resistor.resistance, 1e-9), 0);
   const totalResistance =
-    resistors.reduce((sum, resistor) => sum + Math.max(resistor.resistance, 1e-9), 0) +
+    targetEquivalentResistance +
+    remainingSeriesResistance +
     ammeters.reduce((sum, ammeter) => sum + Math.max(ammeter.internalResistance, 0), 0) +
     Math.max(source.internalResistance, 0);
   const current = source.voltage / totalResistance;
   const power = source.voltage * current;
+  const targetVoltage = targetResistor ? current * targetEquivalentResistance : 0;
 
-  for (const resistor of resistors) {
+  for (const [index, resistor] of resistors.entries()) {
+    const voltage = index === 0 ? targetVoltage : current * resistor.resistance;
+    const resistorCurrent = voltage / Math.max(resistor.resistance, 1e-9);
     measurements[resistor.id] = {
-      current,
-      voltage: current * resistor.resistance,
-      power: current * current * resistor.resistance,
+      current: resistorCurrent,
+      voltage,
+      power: voltage * resistorCurrent,
     };
   }
 
@@ -232,12 +258,9 @@ export function solveCircuit(snapshot: CircuitSnapshot): SimulationResult {
     measurements[ammeter.id] = { current: signedCurrent, overload };
   }
 
-  const nodes = wireNodes(snapshot);
-  const voltmeters = snapshot.components.filter((component): component is VoltmeterComponent => component.kind === 'voltmeter');
-  const targetResistor = resistors[0];
   for (const voltmeter of voltmeters) {
     if (targetResistor && isAcross(voltmeter, targetResistor, nodes)) {
-      measurements[voltmeter.id] = { voltage: current * targetResistor.resistance };
+      measurements[voltmeter.id] = { voltage: targetVoltage };
     } else {
       measurements[voltmeter.id] = { voltage: 0 };
       diagnostics.push({

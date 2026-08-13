@@ -147,7 +147,46 @@ h1 { margin: 4px 0 0; font-size: 20px; font-weight: 650; letter-spacing: -.01em;
 .control-row output { min-width: 76px; text-align: right; font: 600 14px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--cyan); }
 input[type="range"] { width: 100%; margin: 16px 0 5px; accent-color: var(--cyan); }
 .range-label { display: flex; justify-content: space-between; color: #687580; font-size: 11px; }
-.button-stack { display: grid; gap: 9px; margin-top: 30px; }
+.instrument-model-card {
+  margin-top: 24px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: #10151a;
+}
+.instrument-model-head span { display: grid; gap: 3px; }
+.instrument-model-head b { font-size: 13px; color: #d7dfe4; }
+.instrument-model-head small { color: var(--muted); font-size: 11px; }
+.instrument-model-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 11px;
+  padding: 4px;
+  border: 1px solid #29343d;
+  border-radius: 8px;
+  background: #0b1014;
+}
+.instrument-model-button {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #84919b;
+  cursor: pointer;
+  font-size: 12px;
+}
+.instrument-model-button.active {
+  border-color: #315a6a;
+  background: #142831;
+  color: #c9f2ff;
+}
+.instrument-model-note {
+  margin-top: 10px;
+  color: #7f8c95;
+  font: 10.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.button-stack { display: grid; gap: 9px; margin-top: 22px; }
 .button-stack button { min-height: 43px; border-radius: 8px; cursor: pointer; }
 .primary { border: 1px solid var(--cyan-2); background: #15303a; color: #c9f2ff; }
 .secondary { border: 1px solid #3c4852; background: #1a2026; }

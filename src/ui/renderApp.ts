@@ -2,7 +2,12 @@ import type { MeasurementRow } from '../core/measurements';
 import type { SimulationRuntime, SimulationState } from '../core/simulation';
 import type { Diagnostic } from '../core/types';
 import { FieldWorkbenchController } from '../experiments/electric-field/FieldWorkbenchController';
-import { connectStandardCircuit } from '../experiments/ohms-law/createOhmsLaw';
+import {
+  connectStandardCircuit,
+  getOhmsLawInstrumentModel,
+  setOhmsLawInstrumentModel,
+  type InstrumentModel,
+} from '../experiments/ohms-law/createOhmsLaw';
 import type { PythonRuntimeClient } from '../programming/python/PythonRuntimeClient';
 import { BlocksPanelController } from './BlocksPanelController';
 import { PythonPanelController } from './PythonPanelController';
@@ -109,6 +114,16 @@ export function renderApp(
           </label>
           <input id="resistance" type="range" min="0.5" max="20" step="0.5" value="3" aria-label="Сопротивление резистора" />
           <div class="range-label"><span>0.5 Ω</span><span>20 Ω</span></div>
+          <div class="instrument-model-card">
+            <div class="instrument-model-head">
+              <span><b>Модель приборов</b><small>Погрешность измерительной цепи</small></span>
+            </div>
+            <div class="instrument-model-toggle" role="group" aria-label="Модель измерительных приборов">
+              <button type="button" class="instrument-model-button active" data-instrument-model="ideal" aria-pressed="true">Идеальные</button>
+              <button type="button" class="instrument-model-button" data-instrument-model="real" aria-pressed="false">Реальные</button>
+            </div>
+            <div id="instrument-model-note" class="instrument-model-note">Rₐ = 0 Ω · Rᵥ = ∞ · основной учебный режим: I = U / R.</div>
+          </div>
           <div class="button-stack">
             <button id="preset" class="primary">Собрать эталонную цепь</button>
             <button id="measure" class="secondary">Зафиксировать измерение</button>
@@ -331,6 +346,14 @@ export function renderApp(
   root.querySelector<HTMLButtonElement>('.mode[data-mode="python"]')?.addEventListener('click', () => setMode('python'));
   voltage.addEventListener('input', () => runtime.setVoltage(Number(voltage.value)));
   resistance.addEventListener('input', () => runtime.setResistance(Number(resistance.value)));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-instrument-model]')) {
+    button.addEventListener('click', () => {
+      const nextModel = button.dataset.instrumentModel as InstrumentModel | undefined;
+      if (!nextModel || nextModel === getOhmsLawInstrumentModel(runtime)) return;
+      setOhmsLawInstrumentModel(runtime, nextModel);
+      runtime.clearMeasurements();
+    });
+  }
   preset.addEventListener('click', () => connectStandardCircuit(runtime));
   measure.addEventListener('click', () => runtime.captureMeasurement());
   clearWires.addEventListener('click', () => runtime.clearConnections());
@@ -368,6 +391,19 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
   if (voltageOutput) voltageOutput.value = `${fmt(voltageValue)} В`;
   if (resistanceOutput) resistanceOutput.value = `${fmt(resistanceValue)} Ω`;
 
+  const instrumentModel = getOhmsLawInstrumentModel(runtime);
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-instrument-model]')) {
+    const active = button.dataset.instrumentModel === instrumentModel;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+  const modelNote = root.querySelector<HTMLElement>('#instrument-model-note');
+  if (modelNote) {
+    modelNote.textContent = instrumentModel === 'ideal'
+      ? 'Rₐ = 0 Ω · Rᵥ = ∞ · основной учебный режим: I = U / R.'
+      : 'Rₐ = 0.02 Ω · Rᵥ = 1 МОм · учитывается нагрузка вольтметра и сопротивление амперметра.';
+  }
+
   const status = root.querySelector<HTMLElement>('#circuit-status');
   if (status) {
     status.textContent = state.result.status === 'closed'
@@ -402,7 +438,11 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
   const terminal = root.querySelector<HTMLElement>('#terminal-lines');
   if (terminal) {
     const last = rows.at(-1);
+    const voltmeter = snapshot.components.find((component) => component.kind === 'voltmeter');
+    const voltmeterValue = voltmeter ? state.result.measurements[voltmeter.id]?.voltage ?? 0 : 0;
     terminal.innerHTML = [
+      '<div><span>&gt;</span> instruments.model <b>' + instrumentModel + '</b></div>',
+      '<div><span>&gt;</span> voltmeter.read() <b>' + fmt(voltmeterValue, 3) + ' V</b></div>',
       `<div><span>&gt;</span> circuit.status <b>${state.result.status}</b></div>`,
       `<div><span>&gt;</span> source.voltage <b>${fmt(voltageValue)} V</b></div>`,
       `<div><span>&gt;</span> resistor.resistance <b>${fmt(resistanceValue)} Ω</b></div>`,

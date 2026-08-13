@@ -25,6 +25,43 @@ export const ids = {
   voltmeterMinus: terminalId('voltmeter-01:-'),
 } as const;
 
+export type InstrumentModel = 'ideal' | 'real';
+
+export const OHM_INSTRUMENT_MODELS = {
+  ideal: {
+    sourceInternalResistance: 0,
+    ammeterInternalResistance: 0,
+    voltmeterInternalResistance: Number.POSITIVE_INFINITY,
+  },
+  real: {
+    // A regulated school bench supply is treated as an ideal voltage source.
+    // Non-ideal measurement is introduced by the meters themselves.
+    sourceInternalResistance: 0,
+    ammeterInternalResistance: 0.02,
+    voltmeterInternalResistance: 1_000_000,
+  },
+} as const;
+
+export function setOhmsLawInstrumentModel(runtime: SimulationRuntime, model: InstrumentModel): void {
+  const config = OHM_INSTRUMENT_MODELS[model];
+  const components = runtime.circuit.snapshot().components;
+  const source = components.find((component): component is VoltageSourceComponent => component.kind === 'voltage-source');
+  const ammeter = components.find((component): component is AmmeterComponent => component.kind === 'ammeter');
+  const voltmeter = components.find((component): component is VoltmeterComponent => component.kind === 'voltmeter');
+
+  if (source) source.internalResistance = config.sourceInternalResistance;
+  if (ammeter) ammeter.internalResistance = config.ammeterInternalResistance;
+  if (voltmeter) voltmeter.internalResistance = config.voltmeterInternalResistance;
+  runtime.recalculate();
+}
+
+export function getOhmsLawInstrumentModel(runtime: SimulationRuntime): InstrumentModel {
+  const ammeter = runtime.circuit
+    .snapshot()
+    .components.find((component): component is AmmeterComponent => component.kind === 'ammeter');
+  return ammeter && ammeter.internalResistance > 0 ? 'real' : 'ideal';
+}
+
 function terminals(): Terminal[] {
   return [
     { id: ids.sourcePlus, componentId: ids.source, label: '+', polarity: 'positive' },
@@ -65,7 +102,7 @@ export function createOhmsLawRuntime(): SimulationRuntime {
     label: 'Амперметр',
     terminals: [ids.ammeterPlus, ids.ammeterMinus],
     range: 5,
-    internalResistance: 0.02,
+    internalResistance: 0,
   };
   const voltmeter: VoltmeterComponent = {
     id: ids.voltmeter,
@@ -73,7 +110,7 @@ export function createOhmsLawRuntime(): SimulationRuntime {
     label: 'Вольтметр',
     terminals: [ids.voltmeterPlus, ids.voltmeterMinus],
     range: 12,
-    internalResistance: 1_000_000,
+    internalResistance: Number.POSITIVE_INFINITY,
   };
 
   circuit.addComponent(source, byComponent(source.id));

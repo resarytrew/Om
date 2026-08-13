@@ -7,6 +7,8 @@ import type {
   TerminalId,
   VoltageSourceComponent,
   ResistorComponent,
+  AmmeterComponent,
+  VoltmeterComponent,
 } from './types';
 
 export interface SimulationState {
@@ -92,11 +94,26 @@ export class SimulationRuntime {
   captureMeasurement(): void {
     const result = this.state.result;
     if (result.status !== 'closed' || !Number.isFinite(result.current)) return;
-    const resistor = this.circuit
-      .snapshot()
-      .components.find((component): component is ResistorComponent => component.kind === 'resistor');
+    const components = this.circuit.snapshot().components;
+    const resistor = components.find((component): component is ResistorComponent => component.kind === 'resistor');
+    const ammeter = components.find((component): component is AmmeterComponent => component.kind === 'ammeter');
+    const voltmeter = components.find((component): component is VoltmeterComponent => component.kind === 'voltmeter');
     if (!resistor) return;
-    this.measurements.record(result, resistor.resistance);
+
+    // A laboratory measurement records what the meters actually show. In the
+    // ideal mode these values coincide with the source voltage and circuit current;
+    // in the real mode they expose meter loading and ammeter burden resistance.
+    const measuredVoltage = voltmeter
+      ? result.measurements[voltmeter.id]?.voltage ?? result.sourceVoltage
+      : result.sourceVoltage;
+    const measuredCurrent = ammeter
+      ? result.measurements[ammeter.id]?.current ?? result.current
+      : result.current;
+    this.measurements.record(result, resistor.resistance, {
+      voltage: measuredVoltage,
+      current: measuredCurrent,
+      power: measuredVoltage * measuredCurrent,
+    });
     this.publish();
   }
 
