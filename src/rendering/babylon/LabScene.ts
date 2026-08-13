@@ -128,15 +128,21 @@ export class LabScene {
       this.scene,
     );
     camera.fov = 0.66;
-    camera.lowerRadiusLimit = 10.65;
-    camera.upperRadiusLimit = 11.55;
-    camera.lowerBetaLimit = 1.1;
-    camera.upperBetaLimit = 1.27;
-    camera.lowerAlphaLimit = -1.67;
-    camera.upperAlphaLimit = -1.47;
-    camera.wheelPrecision = 180;
-    camera.panningSensibility = 0;
-    camera.attachControl(this.canvas, true);
+
+    // Interactive orbit camera for the laboratory bench. The limits keep the
+    // learner above the table and in front of the studio backdrop, while still
+    // allowing a wide inspection angle around every instrument.
+    camera.lowerRadiusLimit = 5.4;
+    camera.upperRadiusLimit = 16.5;
+    camera.lowerBetaLimit = 0.46;
+    camera.upperBetaLimit = 1.48;
+    camera.lowerAlphaLimit = -Math.PI + 0.16;
+    camera.upperAlphaLimit = -0.16;
+    camera.wheelPrecision = 34;
+    camera.pinchPrecision = 72;
+    camera.inertia = 0.82;
+    camera.panningSensibility = 95;
+    camera.attachControl(this.canvas, true, true);
 
     const pipeline = new DefaultRenderingPipeline('ohm-render-pipeline', true, this.scene, [camera]);
     pipeline.fxaaEnabled = true;
@@ -404,7 +410,9 @@ export class LabScene {
         return;
       }
 
-      if (pointerInfo.type !== PointerEventTypes.POINTERDOWN) return;
+      // POINTERTAP fires only when the pointer is released without a drag.
+      // This keeps terminal/wire selection independent from camera orbiting.
+      if (pointerInfo.type !== PointerEventTypes.POINTERTAP) return;
       this.canvas.focus({ preventScroll: true });
 
       if (metadata?.terminalId) {
