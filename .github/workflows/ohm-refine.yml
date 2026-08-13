@@ -1,0 +1,33 @@
+name: Refine Ohm GLB scene
+
+on:
+  push:
+    branches:
+      - agent/ohm-glb-assets
+    paths:
+      - scripts/refine_ohm_glb_scene.mjs
+      - .github/workflows/ohm-refine.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/ohm-glb-assets
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Apply visual refinement
+        run: node scripts/refine_ohm_glb_scene.mjs
+      - name: Commit refined scene
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/rendering/babylon
+          git diff --cached --quiet && exit 0
+          git commit -m "Ohm GLB: refine fascia, camera and material response"
+          git push
