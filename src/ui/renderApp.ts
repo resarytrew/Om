@@ -96,7 +96,7 @@ export function renderApp(
           </div>
           <div class="scene-wrap">
             <canvas id="lab-canvas" aria-label="Трёхмерная лабораторная установка"></canvas>
-            <div class="scene-hint" id="scene-hint">Клемма → клемма: создать провод · Провод: выбрать, Delete удалить · Esc отмена.</div>
+            <div class="scene-hint" id="scene-hint">Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl + drag: сдвиг · Клик по клемме: провод.</div>
           </div>
         </section>
 
@@ -418,7 +418,7 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
   if (hint) {
     hint.textContent = state.selectedTerminal
       ? `Первая клемма выбрана: ${state.selectedTerminal}. Наведите на вторую — зелёная подсветка означает snap. Esc отмена.`
-      : 'Клемма → клемма: создать провод · Провод: выбрать, Delete удалить · Esc отмена.';
+      : 'Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl + drag: сдвиг · Клик по клемме: провод.';
   }
 
   const diagnosticPanel = root.querySelector<HTMLElement>('#diagnostics');
