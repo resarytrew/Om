@@ -672,9 +672,10 @@ export class LabScene {
         material,
         {
           radius: 0.046,
-          particleCount: 24,
+          particleCount: 28,
           laneOffset: this.wireLane(connection.id),
           leadOut: 0.34,
+          floorY: 0.045,
         },
       );
       cable.mesh.metadata = { connectionId: connection.id } satisfies PickMetadata;

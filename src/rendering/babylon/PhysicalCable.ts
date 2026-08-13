@@ -16,6 +16,8 @@ export interface PhysicalCableOptions {
   readonly particleCount?: number;
   readonly laneOffset?: number;
   readonly leadOut?: number;
+  readonly floorY?: number;
+  readonly frontClearance?: number;
 }
 
 const EPSILON = 1e-4;
@@ -74,42 +76,67 @@ export class PhysicalCable {
     options: PhysicalCableOptions = {},
   ) {
     this.radius = options.radius ?? 0.046;
-    const particleCount = Math.max(12, options.particleCount ?? 24);
+    const particleCount = Math.max(20, options.particleCount ?? 28);
     const leadOut = options.leadOut ?? 0.34;
     const laneOffset = options.laneOffset ?? 0;
-    const startGuide = start.add(new Vector3(0, 0, -leadOut));
-    const endGuide = end.add(new Vector3(0, 0, -leadOut));
+    const floorY = options.floorY ?? 0.045;
+    const cableY = floorY + this.radius * 1.22;
+    const frontClearance = options.frontClearance ?? (0.72 + Math.abs(laneOffset) * 0.42);
 
-    const positions: Vector3[] = [];
-    positions.push(start.clone(), startGuide.clone());
-    const freeCount = particleCount - 4;
+    // The first four points at each end model the semi-rigid strain-relief
+    // section of a laboratory banana lead. The cable exits the socket toward
+    // the learner and bends down before the flexible span begins. This keeps
+    // the lead away from instrument faces without faking the free-span shape.
+    const startLead = start.add(new Vector3(0, 0, -leadOut));
+    const endLead = end.add(new Vector3(0, 0, -leadOut));
+    const startBend = new Vector3(
+      startLead.x,
+      Math.max(cableY + 0.08, cableY + (start.y - cableY) * 0.48),
+      startLead.z - 0.15,
+    );
+    const endBend = new Vector3(
+      endLead.x,
+      Math.max(cableY + 0.08, cableY + (end.y - cableY) * 0.48),
+      endLead.z - 0.15,
+    );
+    const startDrop = new Vector3(
+      startLead.x + laneOffset * 0.08,
+      cableY,
+      startLead.z - 0.3,
+    );
+    const endDrop = new Vector3(
+      endLead.x - laneOffset * 0.08,
+      cableY,
+      endLead.z - 0.3,
+    );
+
+    const positions: Vector3[] = [
+      start.clone(),
+      startLead.clone(),
+      startBend,
+      startDrop,
+    ];
+    const pinnedPerEnd = 4;
+    const freeCount = particleCount - pinnedPerEnd * 2;
     for (let index = 1; index <= freeCount; index += 1) {
       const t = index / (freeCount + 1);
-      const point = Vector3.Lerp(startGuide, endGuide, t);
+      const point = Vector3.Lerp(startDrop, endDrop, t);
       const arch = Math.sin(Math.PI * t);
-      // A small initial arch gives the newly connected lead visible momentum;
-      // gravity then makes it settle naturally onto the bench and obstacles.
-      point.y += arch * 0.42;
-      point.z -= arch * (0.34 + Math.abs(laneOffset) * 0.35);
-      point.x += Math.sin(Math.PI * 2 * t) * laneOffset * 0.45;
+      // Seed the flexible span in front of the apparatus with a little extra
+      // path length. Gravity then settles that slack naturally onto the bench.
+      point.y += arch * 0.16;
+      point.z -= arch * frontClearance;
+      point.x += Math.sin(Math.PI * 2 * t) * laneOffset * 0.72;
       positions.push(point);
     }
-    positions.push(endGuide.clone(), end.clone());
+    positions.push(endDrop.clone(), endBend, endLead.clone(), end.clone());
 
     this.particles = positions.map((position, index) => {
-      const pin = index === 0
-        ? start.clone()
-        : index === 1
-          ? startGuide.clone()
-          : index === positions.length - 2
-            ? endGuide.clone()
-            : index === positions.length - 1
-              ? end.clone()
-              : null;
+      const pinned = index < pinnedPerEnd || index >= positions.length - pinnedPerEnd;
       return {
         position: position.clone(),
         previous: position.clone(),
-        pin,
+        pin: pinned ? position.clone() : null,
       };
     });
 
@@ -174,8 +201,8 @@ export class PhysicalCable {
 
   solveEnvironment(colliders: readonly CableCollider[], floorY: number): void {
     const padding = this.radius * 1.18;
-    for (let index = 2; index < this.particles.length - 2; index += 1) {
-      const particle = this.particles[index]!;
+    for (const particle of this.particles) {
+      if (particle.pin) continue;
       const floorHit = clampPointToBench(particle.position, floorY + this.radius);
       let obstacleHit = false;
       for (const collider of colliders) {
@@ -192,8 +219,8 @@ export class PhysicalCable {
   solveSelfCollision(): void {
     const minDistance = this.radius * 2.05;
     const minDistanceSquared = minDistance * minDistance;
-    for (let aIndex = 2; aIndex < this.particles.length - 2; aIndex += 1) {
-      for (let bIndex = aIndex + 3; bIndex < this.particles.length - 2; bIndex += 1) {
+    for (let aIndex = 0; aIndex < this.particles.length; aIndex += 1) {
+      for (let bIndex = aIndex + 3; bIndex < this.particles.length; bIndex += 1) {
         this.separateParticles(
           this.particles[aIndex]!,
           this.particles[bIndex]!,
@@ -207,8 +234,8 @@ export class PhysicalCable {
   solveCollisionWith(other: PhysicalCable): void {
     const minDistance = (this.radius + other.radius) * 1.08;
     const minDistanceSquared = minDistance * minDistance;
-    for (let aIndex = 2; aIndex < this.particles.length - 2; aIndex += 1) {
-      for (let bIndex = 2; bIndex < other.particles.length - 2; bIndex += 1) {
+    for (let aIndex = 0; aIndex < this.particles.length; aIndex += 1) {
+      for (let bIndex = 0; bIndex < other.particles.length; bIndex += 1) {
         this.separateParticles(
           this.particles[aIndex]!,
           other.particles[bIndex]!,
