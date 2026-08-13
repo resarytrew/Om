@@ -30,8 +30,27 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function clampInstrumentAnchor(id: InstrumentId, point: BenchPoint): BenchPoint {
+export function normalizeInstrumentRotation(angle: number): number {
+  if (!Number.isFinite(angle)) return 0;
+  let normalized = angle % (Math.PI * 2);
+  if (normalized > Math.PI) normalized -= Math.PI * 2;
+  if (normalized <= -Math.PI) normalized += Math.PI * 2;
+  return normalized;
+}
+
+export function instrumentHalfExtents(id: InstrumentId, rotationY = 0): BenchPoint {
   const half = HALF_FOOTPRINT[id];
+  const angle = normalizeInstrumentRotation(rotationY);
+  const c = Math.abs(Math.cos(angle));
+  const s = Math.abs(Math.sin(angle));
+  return {
+    x: half.x * c + half.z * s,
+    z: half.x * s + half.z * c,
+  };
+}
+
+export function clampInstrumentAnchor(id: InstrumentId, point: BenchPoint, rotationY = 0): BenchPoint {
+  const half = instrumentHalfExtents(id, rotationY);
   return {
     x: clamp(point.x, BENCH.minX + half.x, BENCH.maxX - half.x),
     z: clamp(point.z, BENCH.minZ + half.z, BENCH.maxZ - half.z),
