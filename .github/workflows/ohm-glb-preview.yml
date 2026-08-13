@@ -5,6 +5,10 @@ on:
     branches:
       - agent/ohm-glb-assets
     paths:
+      - src/rendering/babylon/**
+      - public/models/ohm/**
+      - package.json
+      - package-lock.json
       - .github/workflows/ohm-glb-preview.yml
 
 permissions:
