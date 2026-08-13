@@ -1,0 +1,52 @@
+@media (min-width: 1180px) {
+  .workspace[data-mode='manual'] {
+    grid-template-columns: minmax(820px, 2.08fr) minmax(300px, 0.68fr);
+    grid-template-rows: minmax(640px, 68vh) 286px 164px;
+  }
+}
+
+.equipment-dock {
+  width: 318px;
+}
+
+.equipment-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.equipment-item {
+  min-height: 84px;
+}
+
+.equipment-item[data-equipment='wire'] {
+  grid-column: span 2;
+}
+
+.equipment-item[data-equipment='resistor'][aria-disabled='true'] {
+  opacity: 0.68;
+  cursor: not-allowed;
+}
+
+.expanded-equipment-icon svg {
+  width: 39px;
+  height: 39px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.equipment-item-expanded .equipment-state,
+.equipment-item[data-equipment='resistor'] .equipment-state {
+  letter-spacing: 0.035em;
+}
+
+@media (max-width: 1320px) {
+  .equipment-dock {
+    width: 292px;
+  }
+
+  .equipment-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -3,6 +3,7 @@ import type {
   AmmeterComponent,
   ComponentMeasurement,
   Diagnostic,
+  LampComponent,
   PhysicalComponent,
   ResistorComponent,
   SimulationResult,
@@ -16,6 +17,8 @@ interface GraphEdge {
   readonly component?: PhysicalComponent;
 }
 
+type ResistiveLoad = ResistorComponent | LampComponent;
+
 const key = (id: TerminalId) => id as string;
 
 function addEdge(graph: Map<string, GraphEdge[]>, from: TerminalId, edge: GraphEdge): void {
@@ -25,7 +28,8 @@ function addEdge(graph: Map<string, GraphEdge[]>, from: TerminalId, edge: GraphE
 }
 
 function componentBetweenTerminals(component: PhysicalComponent): boolean {
-  return component.kind === 'resistor' || component.kind === 'ammeter';
+  if (component.kind === 'switch') return component.closed;
+  return component.kind === 'resistor' || component.kind === 'lamp' || component.kind === 'ammeter';
 }
 
 function buildConductionGraph(snapshot: CircuitSnapshot): Map<string, GraphEdge[]> {
@@ -126,6 +130,10 @@ function isAcross(componentA: PhysicalComponent, componentB: PhysicalComponent, 
   );
 }
 
+function isResistiveLoad(component: PhysicalComponent): component is ResistiveLoad {
+  return component.kind === 'resistor' || component.kind === 'lamp';
+}
+
 export function solveCircuit(snapshot: CircuitSnapshot): SimulationResult {
   const source = snapshot.components.find((component): component is VoltageSourceComponent => component.kind === 'voltage-source');
   if (!source) throw new Error('The experiment requires a voltage source.');
@@ -163,10 +171,10 @@ export function solveCircuit(snapshot: CircuitSnapshot): SimulationResult {
     };
   }
 
-  const resistors = path.components.filter((component): component is ResistorComponent => component.kind === 'resistor');
+  const loads = path.components.filter(isResistiveLoad);
   const ammeters = path.components.filter((component): component is AmmeterComponent => component.kind === 'ammeter');
 
-  if (resistors.length === 0) {
+  if (loads.length === 0) {
     diagnostics.push({
       code: 'SHORT_CIRCUIT',
       severity: 'error',
@@ -193,26 +201,26 @@ export function solveCircuit(snapshot: CircuitSnapshot): SimulationResult {
 
   const nodes = wireNodes(snapshot);
   const voltmeters = snapshot.components.filter((component): component is VoltmeterComponent => component.kind === 'voltmeter');
-  const targetResistor = resistors[0];
-  const parallelVoltmeters = targetResistor
-    ? voltmeters.filter((voltmeter) => isAcross(voltmeter, targetResistor, nodes))
+  const targetLoad = loads[0];
+  const parallelVoltmeters = targetLoad
+    ? voltmeters.filter((voltmeter) => isAcross(voltmeter, targetLoad, nodes))
     : [];
 
-  // The first resistor is the measured load in the Ohm-law experiment. A real
-  // voltmeter is a finite resistance connected in parallel with that load.
+  // The first resistive load is the measured load in the Ohm-law experiment.
+  // A real voltmeter is a finite resistance connected in parallel with that load.
   // An ideal voltmeter has R = Infinity and therefore contributes zero conductance.
-  const targetConductance = targetResistor
-    ? 1 / Math.max(targetResistor.resistance, 1e-9) + parallelVoltmeters.reduce((sum, voltmeter) => {
+  const targetConductance = targetLoad
+    ? 1 / Math.max(targetLoad.resistance, 1e-9) + parallelVoltmeters.reduce((sum, voltmeter) => {
         if (!Number.isFinite(voltmeter.internalResistance)) return sum;
         return sum + 1 / Math.max(voltmeter.internalResistance, 1e-9);
       }, 0)
     : 0;
-  const targetEquivalentResistance = targetResistor && targetConductance > 0
+  const targetEquivalentResistance = targetLoad && targetConductance > 0
     ? 1 / targetConductance
     : 0;
-  const remainingSeriesResistance = resistors
+  const remainingSeriesResistance = loads
     .slice(1)
-    .reduce((sum, resistor) => sum + Math.max(resistor.resistance, 1e-9), 0);
+    .reduce((sum, load) => sum + Math.max(load.resistance, 1e-9), 0);
   const totalResistance =
     targetEquivalentResistance +
     remainingSeriesResistance +
@@ -220,15 +228,15 @@ export function solveCircuit(snapshot: CircuitSnapshot): SimulationResult {
     Math.max(source.internalResistance, 0);
   const current = source.voltage / totalResistance;
   const power = source.voltage * current;
-  const targetVoltage = targetResistor ? current * targetEquivalentResistance : 0;
+  const targetVoltage = targetLoad ? current * targetEquivalentResistance : 0;
 
-  for (const [index, resistor] of resistors.entries()) {
-    const voltage = index === 0 ? targetVoltage : current * resistor.resistance;
-    const resistorCurrent = voltage / Math.max(resistor.resistance, 1e-9);
-    measurements[resistor.id] = {
-      current: resistorCurrent,
+  for (const [index, load] of loads.entries()) {
+    const voltage = index === 0 ? targetVoltage : current * load.resistance;
+    const loadCurrent = voltage / Math.max(load.resistance, 1e-9);
+    measurements[load.id] = {
+      current: loadCurrent,
       voltage,
-      power: voltage * resistorCurrent,
+      power: voltage * loadCurrent,
     };
   }
 
@@ -259,14 +267,14 @@ export function solveCircuit(snapshot: CircuitSnapshot): SimulationResult {
   }
 
   for (const voltmeter of voltmeters) {
-    if (targetResistor && isAcross(voltmeter, targetResistor, nodes)) {
+    if (targetLoad && isAcross(voltmeter, targetLoad, nodes)) {
       measurements[voltmeter.id] = { voltage: targetVoltage };
     } else {
       measurements[voltmeter.id] = { voltage: 0 };
       diagnostics.push({
         code: 'VOLTMETER_NOT_PARALLEL',
         severity: 'info',
-        message: 'Вольтметр должен быть подключён параллельно резистору.',
+        message: 'Вольтметр должен быть подключён параллельно измеряемой нагрузке.',
       });
     }
   }
