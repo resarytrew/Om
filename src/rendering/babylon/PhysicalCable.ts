@@ -66,6 +66,9 @@ export class PhysicalCable {
   private readonly particles: CableParticle[];
   private readonly restLengths: number[];
   private readonly gravity = new Vector3(0, -9.81, 0);
+  private readonly leadOut: number;
+  private readonly laneOffset: number;
+  private readonly cableY: number;
 
   constructor(
     scene: Scene,
@@ -77,10 +80,13 @@ export class PhysicalCable {
   ) {
     this.radius = options.radius ?? 0.046;
     const particleCount = Math.max(20, options.particleCount ?? 28);
-    const leadOut = options.leadOut ?? 0.34;
-    const laneOffset = options.laneOffset ?? 0;
+    this.leadOut = options.leadOut ?? 0.34;
+    this.laneOffset = options.laneOffset ?? 0;
     const floorY = options.floorY ?? 0.045;
-    const cableY = floorY + this.radius * 1.22;
+    this.cableY = floorY + this.radius * 1.22;
+    const leadOut = this.leadOut;
+    const laneOffset = this.laneOffset;
+    const cableY = this.cableY;
     const frontClearance = options.frontClearance ?? (0.72 + Math.abs(laneOffset) * 0.42);
 
     // The first four points at each end model the semi-rigid strain-relief
@@ -246,6 +252,38 @@ export class PhysicalCable {
     }
   }
 
+  updateAnchors(start: Vector3, end: Vector3): void {
+    const startLead = start.add(new Vector3(0, 0, -this.leadOut));
+    const endLead = end.add(new Vector3(0, 0, -this.leadOut));
+    const startBend = new Vector3(
+      startLead.x,
+      Math.max(this.cableY + 0.08, this.cableY + (start.y - this.cableY) * 0.48),
+      startLead.z - 0.15,
+    );
+    const endBend = new Vector3(
+      endLead.x,
+      Math.max(this.cableY + 0.08, this.cableY + (end.y - this.cableY) * 0.48),
+      endLead.z - 0.15,
+    );
+    const startDrop = new Vector3(
+      startLead.x + this.laneOffset * 0.08,
+      this.cableY,
+      startLead.z - 0.3,
+    );
+    const endDrop = new Vector3(
+      endLead.x - this.laneOffset * 0.08,
+      this.cableY,
+      endLead.z - 0.3,
+    );
+
+    const startPins = [start, startLead, startBend, startDrop];
+    const endPins = [endDrop, endBend, endLead, end];
+    for (let index = 0; index < 4; index += 1) {
+      this.movePin(index, startPins[index]!);
+      this.movePin(this.particles.length - 4 + index, endPins[index]!);
+    }
+  }
+
   updateMesh(): void {
     MeshBuilder.CreateTube(
       `wire:${this.id}`,
@@ -255,6 +293,14 @@ export class PhysicalCable {
 
   dispose(): void {
     this.mesh.dispose();
+  }
+
+  private movePin(index: number, target: Vector3): void {
+    const particle = this.particles[index];
+    if (!particle?.pin) return;
+    particle.pin.copyFrom(target);
+    particle.position.copyFrom(target);
+    particle.previous.copyFrom(target);
   }
 
   private positions(): Vector3[] {
@@ -304,9 +350,13 @@ export class PhysicalCableSystem {
   private accumulator = 0;
 
   constructor(
-    private readonly colliders: readonly CableCollider[],
+    private colliders: readonly CableCollider[],
     private readonly floorY = 0.045,
   ) {}
+
+  setColliders(colliders: readonly CableCollider[]): void {
+    this.colliders = colliders;
+  }
 
   add(cable: PhysicalCable): void {
     this.cables.add(cable);

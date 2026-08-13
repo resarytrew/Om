@@ -96,7 +96,15 @@ export function renderApp(
           </div>
           <div class="scene-wrap">
             <canvas id="lab-canvas" aria-label="Трёхмерная лабораторная установка"></canvas>
-            <div class="scene-hint" id="scene-hint">Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl + drag: сдвиг · Клик по клемме: провод.</div>
+            <div class="equipment-tray" aria-label="Оборудование лаборатории">
+              <div class="equipment-tray-head"><span>ОБОРУДОВАНИЕ</span><small>перетащите на стол</small></div>
+              <button class="equipment-item" draggable="true" data-equipment="source"><b>Источник</b><small>0–12 В</small><em>⋮⋮</em></button>
+              <button class="equipment-item" draggable="true" data-equipment="resistor"><b>Резистор</b><small>0.5–20 Ω</small><em>⋮⋮</em></button>
+              <button class="equipment-item" draggable="true" data-equipment="ammeter"><b>Амперметр</b><small>0–5 А</small><em>⋮⋮</em></button>
+              <button class="equipment-item" draggable="true" data-equipment="voltmeter"><b>Вольтметр</b><small>0–12 В</small><em>⋮⋮</em></button>
+              <button id="clear-bench" class="equipment-clear" type="button">Очистить стол</button>
+            </div>
+            <div class="scene-hint" id="scene-hint">Перетащите приборы из меню на стол · За корпус: переставить · Drag по фону: камера · Клик по клемме: провод.</div>
           </div>
         </section>
 
@@ -282,6 +290,7 @@ export function renderApp(
   const preset = root.querySelector<HTMLButtonElement>('#preset');
   const measure = root.querySelector<HTMLButtonElement>('#measure');
   const clearWires = root.querySelector<HTMLButtonElement>('#clear-wires');
+  const clearBench = root.querySelector<HTMLButtonElement>('#clear-bench');
   const clearData = root.querySelector<HTMLButtonElement>('#clear-data');
   const workspace = root.querySelector<HTMLElement>('#ohm-workspace');
   const fieldWorkspace = root.querySelector<HTMLElement>('#field-workspace');
@@ -293,7 +302,7 @@ export function renderApp(
   const manualTerminal = root.querySelector<HTMLElement>('#manual-terminal');
   const blocksCard = root.querySelector<HTMLElement>('#blocks-card');
   const pythonCard = root.querySelector<HTMLElement>('#python-card');
-  if (!canvas || !voltage || !resistance || !preset || !measure || !clearWires || !clearData || !workspace || !fieldWorkspace || !modes || !breadcrumb || !navOhm || !navFields || !manualControls || !manualTerminal || !blocksCard || !pythonCard) {
+  if (!canvas || !voltage || !resistance || !preset || !measure || !clearWires || !clearBench || !clearData || !workspace || !fieldWorkspace || !modes || !breadcrumb || !navOhm || !navFields || !manualControls || !manualTerminal || !blocksCard || !pythonCard) {
     throw new Error('Application shell failed to initialize.');
   }
 
@@ -354,9 +363,58 @@ export function renderApp(
       runtime.clearMeasurements();
     });
   }
-  preset.addEventListener('click', () => connectStandardCircuit(runtime));
+  const equipmentType = 'application/x-physics-instrument';
+  for (const item of root.querySelectorAll<HTMLButtonElement>('[data-equipment]')) {
+    item.addEventListener('dragstart', (event) => {
+      const instrument = item.dataset.equipment;
+      if (!instrument || !event.dataTransfer) return;
+      event.dataTransfer.setData(equipmentType, instrument);
+      event.dataTransfer.effectAllowed = 'move';
+      item.classList.add('dragging');
+    });
+    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+    item.addEventListener('click', () => {
+      const instrument = item.dataset.equipment;
+      if (!instrument) return;
+      canvas.dispatchEvent(new CustomEvent('lab:place-instrument', { detail: { instrument } }));
+    });
+  }
+  canvas.addEventListener('dragover', (event) => {
+    if (!event.dataTransfer?.types.includes(equipmentType)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    canvas.classList.add('equipment-drop-active');
+  });
+  canvas.addEventListener('dragleave', () => canvas.classList.remove('equipment-drop-active'));
+  canvas.addEventListener('drop', (event) => {
+    const instrument = event.dataTransfer?.getData(equipmentType);
+    canvas.classList.remove('equipment-drop-active');
+    if (!instrument) return;
+    event.preventDefault();
+    canvas.dispatchEvent(new CustomEvent('lab:place-instrument', {
+      detail: { instrument, clientX: event.clientX, clientY: event.clientY },
+    }));
+  });
+  canvas.addEventListener('lab:instrument-presence', ((rawEvent: Event) => {
+    const event = rawEvent as CustomEvent<{ placed?: string[] }>;
+    const placed = new Set(event.detail?.placed ?? []);
+    for (const item of root.querySelectorAll<HTMLButtonElement>('[data-equipment]')) {
+      const active = placed.has(item.dataset.equipment ?? '');
+      item.classList.toggle('placed', active);
+      item.setAttribute('aria-pressed', String(active));
+    }
+  }) as EventListener);
+
+  preset.addEventListener('click', () => {
+    canvas.dispatchEvent(new CustomEvent('lab:arrange-standard'));
+    connectStandardCircuit(runtime);
+  });
   measure.addEventListener('click', () => runtime.captureMeasurement());
   clearWires.addEventListener('click', () => runtime.clearConnections());
+  clearBench.addEventListener('click', () => {
+    runtime.clearConnections();
+    canvas.dispatchEvent(new CustomEvent('lab:clear-bench'));
+  });
   clearData.addEventListener('click', () => runtime.clearMeasurements());
 
   const unsubscribe = runtime.subscribe((state) => updateUi(root, runtime, state));
@@ -418,7 +476,7 @@ function updateUi(root: HTMLElement, runtime: SimulationRuntime, state: Simulati
   if (hint) {
     hint.textContent = state.selectedTerminal
       ? `Первая клемма выбрана: ${state.selectedTerminal}. Наведите на вторую — зелёная подсветка означает snap. Esc отмена.`
-      : 'Drag: вращать камеру · Колесо: приблизить/отдалить · Ctrl + drag: сдвиг · Клик по клемме: провод.';
+      : 'Прибор: тяните за корпус · Колесо: zoom · Drag по фону: камера · Ctrl + drag: сдвиг · Клик по клемме: провод.';
   }
 
   const diagnosticPanel = root.querySelector<HTMLElement>('#diagnostics');
