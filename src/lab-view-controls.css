@@ -139,20 +139,45 @@
   display: none !important;
 }
 
-/* Bottom result panels. */
+/* Bottom result panels: one state works in Manual, Blocks and Python. */
+.app-shell.view-hide-data .workspace > .graph-card,
+.app-shell.view-hide-data .workspace > .table-card,
+.app-shell.view-hide-data .workspace > .terminal-card,
+.app-shell.view-hide-data .workspace > #manual-terminal {
+  display: none !important;
+}
+
 .app-shell.view-hide-data .workspace[data-mode='manual'] {
   grid-template-areas: 'lab controls';
   grid-template-rows: minmax(640px, calc(100vh - 92px));
 }
-.app-shell.view-hide-data .workspace[data-mode='manual'] > .graph-card,
-.app-shell.view-hide-data .workspace[data-mode='manual'] > .table-card,
-.app-shell.view-hide-data .workspace[data-mode='manual'] > .terminal-card,
-.app-shell.view-hide-data .workspace[data-mode='manual'] > #manual-terminal {
-  display: none !important;
-}
 .app-shell.view-hide-controls.view-hide-data .workspace[data-mode='manual'] {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: 'lab';
+}
+
+.app-shell.view-hide-data .workspace[data-mode='blocks'] {
+  grid-template-areas: 'lab blocks';
+  grid-template-rows: minmax(640px, calc(100vh - 92px));
+}
+.app-shell.view-hide-data .workspace[data-mode='blocks'] > .blocks-card {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.app-shell.view-hide-data .workspace[data-mode='blocks'] .blocks-lower,
+.app-shell.view-hide-data .workspace[data-mode='blocks'] .blocks-footnote {
+  display: none !important;
+}
+
+.app-shell.view-hide-data .workspace[data-mode='python'] {
+  grid-template-areas: 'lab python';
+  grid-template-rows: minmax(640px, calc(100vh - 92px));
+}
+.app-shell.view-hide-data .workspace[data-mode='python'] > .python-card {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.app-shell.view-hide-data .workspace[data-mode='python'] .python-console-shell,
+.app-shell.view-hide-data .workspace[data-mode='python'] .python-footnote {
+  display: none !important;
 }
 
 /* Scene-level panels. */
