@@ -6,13 +6,16 @@ import './field-enhancements.css';
 import './mechanics.css';
 import './ohm-polish.css';
 import './ohm-expansion.css';
+import './ohm-reference.css';
 import './lab-view-controls.css';
 import { MechanicsWorkbenchController } from './experiments/mechanics/MechanicsWorkbenchController';
 import { createOhmsLawRuntime } from './experiments/ohms-law/createOhmsLaw';
 import { PythonRuntimeClient } from './programming/python/PythonRuntimeClient';
 import { LabScene } from './rendering/babylon/LabScene';
+import { installOhmVisualBugFixes } from './rendering/babylon/OhmVisualBugFixes';
 import { LabViewControlsController } from './ui/LabViewControlsController';
 import { OhmEquipmentExpansionController } from './ui/OhmEquipmentExpansionController';
+import { OhmReferenceCircuitController } from './ui/OhmReferenceCircuitController';
 import { renderApp } from './ui/renderApp';
 
 const root = document.querySelector<HTMLElement>('#app');
@@ -22,15 +25,19 @@ const runtime = createOhmsLawRuntime();
 const pythonClient = new PythonRuntimeClient();
 const app = renderApp(root, runtime, pythonClient);
 const ohmEquipmentExpansion = new OhmEquipmentExpansionController(root, app.canvas);
+const ohmReferenceCircuit = new OhmReferenceCircuitController(root, app.canvas, runtime);
 const labViewControls = new LabViewControlsController(root);
 const mechanicsWorkbench = new MechanicsWorkbenchController(root);
 const scene = new LabScene(app.canvas, runtime);
+const disposeOhmVisualBugFixes = installOhmVisualBugFixes(scene);
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    disposeOhmVisualBugFixes();
     scene.dispose();
     mechanicsWorkbench.dispose();
     labViewControls.dispose();
+    ohmReferenceCircuit.dispose();
     ohmEquipmentExpansion.dispose();
     app.dispose();
     pythonClient.dispose();
