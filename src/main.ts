@@ -12,6 +12,7 @@ import { MechanicsWorkbenchController } from './experiments/mechanics/MechanicsW
 import { createOhmsLawRuntime } from './experiments/ohms-law/createOhmsLaw';
 import { PythonRuntimeClient } from './programming/python/PythonRuntimeClient';
 import { LabScene } from './rendering/babylon/LabScene';
+import { installOhmVisualBugFixes } from './rendering/babylon/OhmVisualBugFixes';
 import { LabViewControlsController } from './ui/LabViewControlsController';
 import { OhmEquipmentExpansionController } from './ui/OhmEquipmentExpansionController';
 import { OhmReferenceCircuitController } from './ui/OhmReferenceCircuitController';
@@ -28,9 +29,11 @@ const ohmReferenceCircuit = new OhmReferenceCircuitController(root, app.canvas, 
 const labViewControls = new LabViewControlsController(root);
 const mechanicsWorkbench = new MechanicsWorkbenchController(root);
 const scene = new LabScene(app.canvas, runtime);
+const disposeOhmVisualBugFixes = installOhmVisualBugFixes(scene);
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
+    disposeOhmVisualBugFixes();
     scene.dispose();
     mechanicsWorkbench.dispose();
     labViewControls.dispose();
