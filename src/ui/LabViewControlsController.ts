@@ -5,6 +5,7 @@ export class LabViewControlsController {
   private readonly labCard: HTMLElement | null;
   private readonly sceneWrap: HTMLElement | null;
   private panel: HTMLElement | null = null;
+  private quickResultsButton: HTMLButtonElement | null = null;
 
   constructor(root: HTMLElement) {
     this.appShell = root.querySelector<HTMLElement>('#app-shell, .app-shell');
@@ -18,6 +19,8 @@ export class LabViewControlsController {
 
   dispose(): void {
     for (const cleanup of this.cleanups.splice(0)) cleanup();
+    this.quickResultsButton?.remove();
+    this.quickResultsButton = null;
     this.panel?.remove();
     this.panel = null;
   }
@@ -36,7 +39,7 @@ export class LabViewControlsController {
         <button type="button" data-view="topbar">Верхняя панель</button>
         <button type="button" data-view="sidebar">Левое меню</button>
         <button type="button" data-view="controls">Параметры</button>
-        <button type="button" data-view="data">График / таблица / терминал</button>
+        <button type="button" data-view="data">Нижние панели / терминалы</button>
         <button type="button" data-view="scenehead">Заголовок сцены</button>
         <button type="button" data-view="equipment">Оборудование</button>
         <button type="button" data-view="hint">Подсказка</button>
@@ -45,6 +48,26 @@ export class LabViewControlsController {
       </div>`;
     this.sceneWrap!.append(panel);
     this.panel = panel;
+
+    const layoutControls = this.appShell!.querySelector<HTMLElement>('.layout-controls');
+    if (layoutControls) {
+      const quickButton = document.createElement('button');
+      quickButton.id = 'toggle-results';
+      quickButton.className = 'layout-control';
+      quickButton.type = 'button';
+      quickButton.setAttribute('aria-pressed', 'false');
+      quickButton.title = 'Скрыть графики, измерения и терминалы';
+      quickButton.innerHTML = '<span>▤</span><small>Результаты</small>';
+      layoutControls.append(quickButton);
+      this.quickResultsButton = quickButton;
+
+      const onQuickClick = (): void => {
+        this.toggle('view-hide-data');
+        this.syncButtons();
+      };
+      quickButton.addEventListener('click', onQuickClick);
+      this.cleanups.push(() => quickButton.removeEventListener('click', onQuickClick));
+    }
 
     const trigger = panel.querySelector<HTMLButtonElement>('[data-view="panel"]')!;
     const menu = panel.querySelector<HTMLElement>('.lab-view-menu')!;
@@ -150,5 +173,16 @@ export class LabViewControlsController {
     state('equipment', this.appShell.classList.contains('view-hide-equipment'));
     state('hint', this.appShell.classList.contains('view-hide-hint'));
     state('fullscreen', document.fullscreenElement === this.labCard);
+
+    const dataHidden = this.appShell.classList.contains('view-hide-data');
+    if (this.quickResultsButton) {
+      this.quickResultsButton.classList.toggle('active', dataHidden);
+      this.quickResultsButton.setAttribute('aria-pressed', String(dataHidden));
+      this.quickResultsButton.title = dataHidden
+        ? 'Показать графики, измерения и терминалы'
+        : 'Скрыть графики, измерения и терминалы';
+      const label = this.quickResultsButton.querySelector<HTMLElement>('small');
+      if (label) label.textContent = dataHidden ? 'Показать' : 'Результаты';
+    }
   }
 }
