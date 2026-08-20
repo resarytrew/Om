@@ -37,6 +37,7 @@ export class LabViewControlsController {
         <button type="button" data-view="sidebar">Левое меню</button>
         <button type="button" data-view="controls">Параметры</button>
         <button type="button" data-view="data">График / таблица / терминал</button>
+        <button type="button" data-view="scenehead">Заголовок сцены</button>
         <button type="button" data-view="equipment">Оборудование</button>
         <button type="button" data-view="hint">Подсказка</button>
         <button type="button" data-view="fullscreen">Полный экран</button>
@@ -66,6 +67,7 @@ export class LabViewControlsController {
       if (action === 'sidebar') this.toggle('view-hide-sidebar');
       if (action === 'controls') this.toggle('view-hide-controls');
       if (action === 'data') this.toggle('view-hide-data');
+      if (action === 'scenehead') this.toggle('view-hide-scenehead');
       if (action === 'equipment') this.toggle('view-hide-equipment');
       if (action === 'hint') this.toggle('view-hide-hint');
       if (action === 'fullscreen') void this.toggleFullscreen();
@@ -103,6 +105,7 @@ export class LabViewControlsController {
       'view-hide-sidebar',
       'view-hide-controls',
       'view-hide-data',
+      'view-hide-scenehead',
       'view-hide-equipment',
       'view-hide-hint',
     );
@@ -115,6 +118,7 @@ export class LabViewControlsController {
       'view-hide-sidebar',
       'view-hide-controls',
       'view-hide-data',
+      'view-hide-scenehead',
       'view-hide-equipment',
       'view-hide-hint',
     );
@@ -141,6 +145,7 @@ export class LabViewControlsController {
     state('sidebar', this.appShell.classList.contains('view-hide-sidebar'));
     state('controls', this.appShell.classList.contains('view-hide-controls'));
     state('data', this.appShell.classList.contains('view-hide-data'));
+    state('scenehead', this.appShell.classList.contains('view-hide-scenehead'));
     state('equipment', this.appShell.classList.contains('view-hide-equipment'));
     state('hint', this.appShell.classList.contains('view-hide-hint'));
     state('fullscreen', document.fullscreenElement === this.labCard);
