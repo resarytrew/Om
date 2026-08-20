@@ -72,14 +72,20 @@ export function renderApp(
   pythonClient: PythonRuntimeClient,
 ): AppElements {
   root.innerHTML = `
-    <div class="app-shell">
+    <div class="app-shell" id="app-shell">
       <header class="topbar">
         <div class="brand"><span class="brand-mark">◎</span><strong>PHYSICS:<span>//LAB</span></strong></div>
         <div class="breadcrumb" id="app-breadcrumb"><span>Электричество</span><b>/</b> Закон Ома</div>
-        <div class="modes" id="ohm-modes" aria-label="Режим работы">
-          <button class="mode active" data-mode="manual">Manual</button>
-          <button class="mode" data-mode="blocks">Blocks</button>
-          <button class="mode" data-mode="python">Python</button>
+        <div class="topbar-actions">
+          <div class="modes" id="ohm-modes" aria-label="Режим работы">
+            <button class="mode active" data-mode="manual">Manual</button>
+            <button class="mode" data-mode="blocks">Blocks</button>
+            <button class="mode" data-mode="python">Python</button>
+          </div>
+          <div class="layout-controls" aria-label="Панели интерфейса">
+            <button id="toggle-sidebar" class="layout-control" type="button" aria-pressed="false" title="Скрыть левую панель"><span>☰</span><small>Меню</small></button>
+            <button id="toggle-controls" class="layout-control" type="button" aria-pressed="false" title="Скрыть панель параметров"><span>◧</span><small>Параметры</small></button>
+          </div>
         </div>
       </header>
       <aside class="sidebar">
@@ -94,7 +100,10 @@ export function renderApp(
         <section class="lab-card">
           <div class="scene-head">
             <div><span class="eyebrow">LIVE LAB</span><h1>Закон Ома для участка цепи</h1></div>
-            <div id="circuit-status" class="circuit-status">Цепь разомкнута</div>
+            <div class="scene-head-actions">
+              <div id="circuit-status" class="circuit-status">Цепь разомкнута</div>
+              <button id="lab-fullscreen" class="scene-fullscreen" type="button" aria-pressed="false" title="Полный экран (F)" aria-label="Открыть лабораторию на весь экран">⛶</button>
+            </div>
           </div>
           <div class="scene-wrap">
             <canvas id="lab-canvas" aria-label="Трёхмерная лабораторная установка"></canvas>
@@ -292,7 +301,12 @@ export function renderApp(
       </main>
     </div>`;
 
+  const appShell = root.querySelector<HTMLElement>('#app-shell');
   const canvas = root.querySelector<HTMLCanvasElement>('#lab-canvas');
+  const labCard = root.querySelector<HTMLElement>('.lab-card');
+  const sidebarToggle = root.querySelector<HTMLButtonElement>('#toggle-sidebar');
+  const controlsToggle = root.querySelector<HTMLButtonElement>('#toggle-controls');
+  const fullscreenToggle = root.querySelector<HTMLButtonElement>('#lab-fullscreen');
   const voltage = root.querySelector<HTMLInputElement>('#voltage');
   const resistance = root.querySelector<HTMLInputElement>('#resistance');
   const preset = root.querySelector<HTMLButtonElement>('#preset');
@@ -312,7 +326,7 @@ export function renderApp(
   const manualTerminal = root.querySelector<HTMLElement>('#manual-terminal');
   const blocksCard = root.querySelector<HTMLElement>('#blocks-card');
   const pythonCard = root.querySelector<HTMLElement>('#python-card');
-  if (!canvas || !voltage || !resistance || !preset || !measure || !clearWires || !clearBench || !equipmentDock || !equipmentDockToggle || !clearData || !workspace || !fieldWorkspace || !modes || !breadcrumb || !navOhm || !navFields || !manualControls || !manualTerminal || !blocksCard || !pythonCard) {
+  if (!appShell || !canvas || !labCard || !sidebarToggle || !controlsToggle || !fullscreenToggle || !voltage || !resistance || !preset || !measure || !clearWires || !clearBench || !equipmentDock || !equipmentDockToggle || !clearData || !workspace || !fieldWorkspace || !modes || !breadcrumb || !navOhm || !navFields || !manualControls || !manualTerminal || !blocksCard || !pythonCard) {
     throw new Error('Application shell failed to initialize.');
   }
 
@@ -322,6 +336,63 @@ export function renderApp(
   let mode: AppMode = 'manual';
   let section: AppSection = 'ohm';
   let standardBuildSequence = 0;
+  let sidebarCollapsed = false;
+  let controlsCollapsed = false;
+
+  const syncLayoutControls = (): void => {
+    appShell.classList.toggle('sidebar-collapsed', sidebarCollapsed);
+    const controlsCanShow = section === 'ohm' && mode === 'manual';
+    workspace.classList.toggle('controls-collapsed', controlsCanShow && controlsCollapsed);
+
+    sidebarToggle.classList.toggle('active', sidebarCollapsed);
+    sidebarToggle.setAttribute('aria-pressed', String(sidebarCollapsed));
+    sidebarToggle.title = sidebarCollapsed ? 'Показать левую панель' : 'Скрыть левую панель';
+    const sidebarLabel = sidebarToggle.querySelector<HTMLElement>('small');
+    if (sidebarLabel) sidebarLabel.textContent = sidebarCollapsed ? 'Показать меню' : 'Меню';
+
+    controlsToggle.hidden = !controlsCanShow;
+    controlsToggle.classList.toggle('active', controlsCollapsed);
+    controlsToggle.setAttribute('aria-pressed', String(controlsCollapsed));
+    controlsToggle.title = controlsCollapsed ? 'Показать панель параметров' : 'Скрыть панель параметров';
+    const controlsLabel = controlsToggle.querySelector<HTMLElement>('small');
+    if (controlsLabel) controlsLabel.textContent = controlsCollapsed ? 'Показать' : 'Параметры';
+  };
+
+  const syncFullscreenControl = (): void => {
+    const active = document.fullscreenElement === labCard;
+    labCard.classList.toggle('fullscreen-active', active);
+    fullscreenToggle.classList.toggle('active', active);
+    fullscreenToggle.setAttribute('aria-pressed', String(active));
+    fullscreenToggle.textContent = active ? '↙' : '⛶';
+    fullscreenToggle.title = active ? 'Выйти из полного экрана (Esc)' : 'Полный экран (F)';
+    fullscreenToggle.setAttribute('aria-label', active ? 'Выйти из полноэкранного режима' : 'Открыть лабораторию на весь экран');
+  };
+
+  const toggleLabFullscreen = async (): Promise<void> => {
+    try {
+      if (document.fullscreenElement === labCard) {
+        await document.exitFullscreen();
+      } else if (!document.fullscreenElement) {
+        await labCard.requestFullscreen();
+      }
+    } catch (error) {
+      console.warn('Fullscreen mode is not available in this browser context.', error);
+    }
+  };
+
+  const handleFullscreenChange = (): void => syncFullscreenControl();
+  const handleViewKeyDown = (event: KeyboardEvent): void => {
+    const target = event.target as HTMLElement | null;
+    const isTyping = target instanceof HTMLInputElement
+      || target instanceof HTMLTextAreaElement
+      || target instanceof HTMLSelectElement
+      || Boolean(target?.isContentEditable)
+      || Boolean(target?.closest('.monaco-editor, .blocklyWorkspace'));
+    if (isTyping || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key.toLowerCase() !== 'f' || section !== 'ohm') return;
+    event.preventDefault();
+    void toggleLabFullscreen();
+  };
 
   const setMode = (nextMode: AppMode): void => {
     mode = nextMode;
@@ -336,6 +407,7 @@ export function renderApp(
     if (mode === 'blocks') void blocksPanel.activate();
     if (mode === 'python') void pythonPanel.activate();
     if (mode !== 'python') pythonPanel.deactivate();
+    syncLayoutControls();
   };
 
   const setSection = (nextSection: AppSection): void => {
@@ -349,6 +421,7 @@ export function renderApp(
       ? '<span>Электричество</span><b>/</b> Закон Ома'
       : '<span>Электричество</span><b>/</b> Поле заряженной пластины';
     if (section === 'fields') void fieldWorkbench.activate();
+    syncLayoutControls();
   };
 
   blocksPanel = new BlocksPanelController(root, runtime, {
@@ -358,6 +431,18 @@ export function renderApp(
       void pythonPanel.setProgram(code);
     },
   });
+
+  sidebarToggle.addEventListener('click', () => {
+    sidebarCollapsed = !sidebarCollapsed;
+    syncLayoutControls();
+  });
+  controlsToggle.addEventListener('click', () => {
+    controlsCollapsed = !controlsCollapsed;
+    syncLayoutControls();
+  });
+  fullscreenToggle.addEventListener('click', () => { void toggleLabFullscreen(); });
+  document.addEventListener('fullscreenchange', handleFullscreenChange);
+  document.addEventListener('keydown', handleViewKeyDown);
 
   navOhm.addEventListener('click', () => setSection('ohm'));
   navFields.addEventListener('click', () => setSection('fields'));
@@ -503,10 +588,14 @@ export function renderApp(
   const unsubscribe = runtime.subscribe((state) => updateUi(root, runtime, state));
   setMode(mode);
   setSection(section);
+  syncLayoutControls();
+  syncFullscreenControl();
 
   return {
     canvas,
     dispose: () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('keydown', handleViewKeyDown);
       unsubscribe();
       blocksPanel.dispose();
       pythonPanel.dispose();
