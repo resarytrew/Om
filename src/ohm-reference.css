@@ -1,0 +1,74 @@
+.reference-circuit-card {
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: #10151a;
+}
+
+.reference-circuit-head span {
+  display: grid;
+  gap: 3px;
+}
+.reference-circuit-head b {
+  color: #dce4e8;
+  font-size: 13px;
+}
+.reference-circuit-head small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reference-circuit-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 4px;
+  border: 1px solid #29343d;
+  border-radius: 8px;
+  background: #0b1014;
+}
+.reference-circuit-toggle button {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #84919b;
+  cursor: pointer;
+  font-size: 11px;
+}
+.reference-circuit-toggle button:hover:not(:disabled) {
+  color: #d9f6ff;
+  background: #101d23;
+}
+.reference-circuit-toggle button.active {
+  border-color: #315a6a;
+  background: #142831;
+  color: #c9f2ff;
+}
+.reference-circuit-toggle button:disabled {
+  opacity: .5;
+  cursor: wait;
+}
+
+.reference-circuit-note {
+  min-height: 44px;
+  margin-top: 10px;
+  color: #93a1aa;
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.reference-control-hint {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #242d34;
+  color: #6f7e88;
+  font: 9.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+#manual-controls > .instrument-model-card {
+  margin-top: 14px;
+}
