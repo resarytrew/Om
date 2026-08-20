@@ -1,0 +1,222 @@
+/* Floating laboratory view controls. Kept inside the 3D scene so it remains reachable
+   even when every surrounding application panel is hidden. */
+.lab-view-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 18;
+  display: grid;
+  justify-items: end;
+  gap: 7px;
+  pointer-events: none;
+}
+
+.lab-view-trigger,
+.lab-view-menu { pointer-events: auto; }
+
+.lab-view-trigger {
+  width: 42px;
+  height: 34px;
+  border: 1px solid rgba(106, 210, 240, .52);
+  border-radius: 7px;
+  background: rgba(5, 12, 16, .92);
+  color: #9beaff;
+  cursor: pointer;
+  font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .1em;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .35), inset 0 1px rgba(255,255,255,.035);
+  backdrop-filter: blur(12px);
+}
+
+.lab-view-trigger:hover,
+.lab-view-controls.open .lab-view-trigger {
+  border-color: #79e4ff;
+  background: rgba(10, 28, 35, .96);
+  color: #dcf9ff;
+}
+
+.lab-view-menu {
+  width: 224px;
+  padding: 7px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(84, 119, 132, .52);
+  border-radius: 9px;
+  background: rgba(5, 8, 10, .965);
+  box-shadow: 0 18px 46px rgba(0,0,0,.52);
+  backdrop-filter: blur(18px) saturate(1.1);
+}
+.lab-view-menu[hidden] { display: none; }
+
+.lab-view-menu-head {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px 5px;
+  border-bottom: 1px solid rgba(84, 103, 113, .24);
+}
+.lab-view-menu-head span {
+  color: #79dff7;
+  font: 800 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .14em;
+}
+.lab-view-menu-head button {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 1px solid #29343a;
+  border-radius: 5px;
+  background: #0a0e11;
+  color: #7d8d96;
+  cursor: pointer;
+  font-size: 17px;
+}
+
+.lab-view-menu > button:not(.lab-view-menu-head button) {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #252e34;
+  border-radius: 5px;
+  background: #0a0e11;
+  color: #8c9ba4;
+  cursor: pointer;
+  text-align: left;
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  transition: border-color .14s ease, color .14s ease, background .14s ease;
+}
+.lab-view-menu > button:not(.lab-view-menu-head button):hover {
+  border-color: #3d6977;
+  background: #0e1a1f;
+  color: #c5f3ff;
+}
+.lab-view-menu > button.active:not(.lab-view-menu-head button) {
+  border-color: #3a8aa1;
+  background: #10242c;
+  color: #7ee8ff;
+}
+.lab-view-menu > button[data-view='all'] { color: #f0c575; }
+.lab-view-menu > button[data-view='restore'] { color: #73dc9b; }
+
+/* Top application chrome. */
+.app-shell.view-hide-topbar {
+  grid-template-rows: 0 1fr;
+}
+.app-shell.view-hide-topbar > .topbar {
+  height: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Left application navigation. */
+.app-shell.view-hide-sidebar {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.app-shell.view-hide-sidebar > .sidebar {
+  width: 0;
+  min-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Right parameter panel. */
+.app-shell.view-hide-controls .workspace[data-mode='manual'] {
+  grid-template-areas:
+    'lab lab'
+    'graph table'
+    'terminal terminal';
+}
+.app-shell.view-hide-controls .workspace[data-mode='manual'] > .controls-card {
+  display: none !important;
+}
+
+/* Bottom result panels. */
+.app-shell.view-hide-data .workspace[data-mode='manual'] {
+  grid-template-areas: 'lab controls';
+  grid-template-rows: minmax(640px, calc(100vh - 92px));
+}
+.app-shell.view-hide-data .workspace[data-mode='manual'] > .graph-card,
+.app-shell.view-hide-data .workspace[data-mode='manual'] > .table-card,
+.app-shell.view-hide-data .workspace[data-mode='manual'] > .terminal-card,
+.app-shell.view-hide-data .workspace[data-mode='manual'] > #manual-terminal {
+  display: none !important;
+}
+.app-shell.view-hide-controls.view-hide-data .workspace[data-mode='manual'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'lab';
+}
+
+/* Scene-level panels. */
+.app-shell.view-hide-equipment #equipment-dock {
+  opacity: 0;
+  transform: translateX(-18px) scale(.98);
+  pointer-events: none;
+  visibility: hidden;
+}
+.app-shell.view-hide-hint #scene-hint {
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  visibility: hidden;
+}
+.app-shell.view-hide-scenehead .lab-card {
+  grid-template-rows: 0 minmax(0, 1fr);
+}
+.app-shell.view-hide-scenehead .lab-card > .scene-head {
+  min-height: 0;
+  height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#equipment-dock,
+#scene-hint,
+.lab-card > .scene-head,
+.topbar,
+.sidebar {
+  transition: opacity .2s ease, transform .24s cubic-bezier(.2,.7,.2,1), height .24s ease, padding .24s ease;
+}
+
+/* True focus mode: only the 3D laboratory remains, plus the tiny UI restore button. */
+.app-shell.view-hide-topbar.view-hide-sidebar.view-hide-controls.view-hide-data {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.app-shell.view-hide-topbar.view-hide-sidebar.view-hide-controls.view-hide-data .workspace[data-mode='manual'] {
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  height: 100vh;
+  padding: 0;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'lab';
+}
+.app-shell.view-hide-topbar.view-hide-sidebar.view-hide-controls.view-hide-data .lab-card {
+  min-height: 100vh;
+  border: 0;
+  border-radius: 0;
+}
+
+.lab-card:fullscreen .lab-view-controls {
+  top: 16px;
+  right: 16px;
+}
+
+@media (max-width: 1320px) {
+  .lab-view-menu { width: 206px; }
+}
