@@ -6,7 +6,7 @@ export class LabViewControlsController {
   private readonly sceneWrap: HTMLElement | null;
   private panel: HTMLElement | null = null;
 
-  constructor(private readonly root: HTMLElement) {
+  constructor(root: HTMLElement) {
     this.appShell = root.querySelector<HTMLElement>('#app-shell, .app-shell');
     this.workspace = root.querySelector<HTMLElement>('#ohm-workspace');
     this.labCard = root.querySelector<HTMLElement>('.lab-card');
@@ -54,12 +54,13 @@ export class LabViewControlsController {
       trigger.setAttribute('aria-expanded', String(open));
       panel.classList.toggle('open', open);
     };
+    const toggleMenu = (): void => setMenuOpen(menu.hidden !== false);
 
     const onClick = (event: MouseEvent): void => {
       const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>('[data-view]');
       if (!button) return;
       const action = button.dataset.view;
-      if (action === 'panel') { setMenuOpen(menu.hidden); return; }
+      if (action === 'panel') { toggleMenu(); return; }
       if (action === 'panel-close') { setMenuOpen(false); return; }
       if (action === 'all') this.hideAll();
       if (action === 'restore') this.showAll();
@@ -85,7 +86,7 @@ export class LabViewControlsController {
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
       if (event.key.toLowerCase() === 'u') {
         event.preventDefault();
-        setMenuOpen(menu.hidden);
+        toggleMenu();
       }
     };
     document.addEventListener('keydown', onKeyDown);
